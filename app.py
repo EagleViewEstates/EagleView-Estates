@@ -2,89 +2,85 @@ import streamlit as st
 import datetime
 
 # --- CONFIGURATION & STYLING ---
-st.set_page_config(page_title="EagleView Estates - On-Demand Storage", layout="centered")
+st.set_page_config(page_title="EagleView Estates & Earthworks", layout="centered", page_icon="🦅")
 
 st.markdown("""
     <style>
-    .main { background-color: #f5f5f5; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1E3A8A; color: white; }
-    .price-box { padding: 20px; background-color: #ffffff; border-radius: 10px; border: 1px solid #ddd; }
+    .main { background-color: #f8fafc; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #1e40af; color: white; font-weight: bold; }
+    .price-box { padding: 20px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    .maintenance-card { padding: 15px; border-left: 5px solid #fbbf24; background-color: #fffbeb; margin-bottom: 10px; border-radius: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- HEADER ---
-st.title("🦅 EagleView Estates")
-st.subheader("On-Demand Industrial Storage | Red Fife Road")
+# --- APP NAVIGATION ---
+tab1, tab2 = st.tabs(["🏗️ Book Storage (Estates)", "🚜 Maintenance Hub (Earthworks)"])
 
-# --- STEP 1: SELECT PAD SIZE ---
-st.write("### 1. Select Your Space")
-pad_type = st.selectbox(
-    "Choose a Pad Size",
-    ["Small Trade Pad (1,000 sq ft)", "Contractor Pad (2,500 sq ft)", "Heavy Civil Pad (5,000 sq ft)", "Custom Oversized"]
-)
+# --- TAB 1: EAGLEVIEW ESTATES (THE LEASING APP) ---
+with tab1:
+    st.title("🦅 EagleView Estates")
+    st.info("Direct Access Contractor Yards | Red Fife Road, Rosser")
 
-# Logic for dynamic pricing based on your $0.75 - $1.50 model
-pricing = {
-    "Small Trade Pad (1,000 sq ft)": 1.50,
-    "Contractor Pad (2,500 sq ft)": 1.00,
-    "Heavy Civil Pad (5,000 sq ft)": 0.75,
-    "Custom Oversized": 1.25
-}
+    st.write("### 1. Choose Your Pad")
+    pad_choice = st.radio("Standard Pad Sizes:", 
+                          ["Small Trade (1,000 sq ft)", "Contractor Pad (2,500 sq ft)", "Heavy Civil (5,000 sq ft)"],
+                          horizontal=True)
 
-sq_ft_map = {
-    "Small Trade Pad (1,000 sq ft)": 1000,
-    "Contractor Pad (2,500 sq ft)": 2500,
-    "Heavy Civil Pad (5,000 sq ft)": 5000,
-    "Custom Oversized": 10000
-}
+    # Pricing Logic ($0.75 - $1.50)
+    pricing_data = {
+        "Small Trade (1,000 sq ft)": {"rate": 1.50, "sqft": 1000},
+        "Contractor Pad (2,500 sq ft)": {"rate": 1.00, "sqft": 2500},
+        "Heavy Civil (5,000 sq ft)": {"rate": 0.75, "sqft": 5000}
+    }
 
-rate = pricing[pad_type]
-total_monthly = sq_ft_map[pad_type] * rate
+    selected = pricing_data[pad_choice]
+    monthly_rent = selected['rate'] * selected['sqft']
 
-# --- STEP 2: DURATION & MAINTENANCE ---
-st.write("### 2. Duration & Services")
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("Start Date", datetime.date.today())
-with col2:
-    months = st.number_input("Months", min_value=1, max_value=12, value=1)
+    st.write("### 2. Add-On Services")
+    col1, col2 = st.columns(2)
+    with col1:
+        snow = st.checkbox("Priority Snow Clear", help="Earthworks clears right to your bumper")
+    with col2:
+        wash = st.checkbox("Bi-Weekly Unit Wash")
 
-# EagleView Earthworks Integration
-st.write("**EagleView Earthworks Add-ons:**")
-snow_clearing = st.checkbox("Priority Snow Clearing (Direct to Equipment)")
-equipment_wash = st.checkbox("Weekly Mobile Pressure Wash")
+    extra_fees = (150 if snow else 0) + (250 if wash else 0)
+    total = monthly_rent + extra_fees
 
-service_fee = 0
-if snow_clearing: service_fee += 150
-if equipment_wash: service_fee += 300
+    st.markdown(f"""
+        <div class="price-box">
+            <h2 style='margin:0; color:#1e40af;'>${total:,.2f} / month</h2>
+            <p style='color:#64748b;'>Zoning: I2 General Industrial | Access: 24/7 Automated</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-# --- STEP 3: TOTALS ---
-final_total = total_monthly + service_fee
-st.markdown(f"""
-<div class="price-box">
-    <h4>Monthly Quote: ${final_total:,.2f}</h4>
-    <p style='color: gray;'>Rate: ${rate}/sq ft | Location: 3275 Red Fife Rd (Rosser)</p>
-</div>
-""", unsafe_allow_html=True)
+    if st.button("PROCEED TO SECURE CHECKOUT"):
+        st.warning("🔗 Redirecting to Stripe for Payment & ID Verification...")
+        # In a live app, you would use: st.link_button("Pay Now", "https://buy.stripe.com/your_link_id")
 
-# --- STEP 4: LEGAL & CHECKOUT ---
-st.write("### 3. Finalize & Sign")
-with st.expander("Read Rental Agreement (Digital Signature Required)"):
-    st.write("""
-    **EagleView Estates Terms of Service:**
-    - I agree to provide proof of insurance for all equipment.
-    - I indemnify EagleView Estates and the Landlord against any environmental spills.
-    - No hazardous waste storage permitted.
-    - RM of Rosser bylaws apply.
-    """)
+# --- TAB 2: EAGLEVIEW EARTHWORKS (THE SERVICE APP) ---
+with tab2:
+    st.title("🚜 EagleView Earthworks")
+    st.write("Logged in as: **Tenant at Pad #204 (Red Fife Rd)**")
+    
+    st.markdown("""
+        <div class="maintenance-card">
+            <strong>Current Site Condition:</strong> Dry & Graded (Last Maintained: May 4, 2026)
+        </div>
+    """, unsafe_allow_html=True)
 
-agreed = st.checkbox("I have read and agree to the Digital Lease Agreement.")
+    with st.form("maintenance_request"):
+        st.write("### Request Property Maintenance")
+        service_type = st.selectbox("Issue/Service Needed", 
+                                   ["Gravel Grading", "Dust Suppression", "Snow Removal", "Equipment Recovery", "Report Fence Damage"])
+        
+        urgency = st.select_slider("Urgency Level", options=["Routine", "High", "EMERGENCY"])
+        
+        details = st.text_area("Details (e.g., 'Soft spot near Pad A4 after rain')")
+        
+        photo = st.file_uploader("Upload Photo (Optional)", type=['jpg', 'png'])
+        
+        submit_service = st.form_submit_button("SUBMIT TO EAGLEVIEW CREW")
 
-if st.button("BOOK NOW & GET ACCESS CODE"):
-    if agreed:
-        st.success(f"SUCCESS! Payment of ${final_total:,.2f} processed via Stripe.")
-        st.balloons()
-        st.info("🔓 YOUR GATE ACCESS CODE: **#2026-FIFE**")
-        st.write("A copy of the signed lease and site map has been sent to your email.")
-    else:
-        st.warning("Please agree to the terms to proceed.")
+    if submit_service:
+        st.success("✅ Request Sent. EagleView Earthworks has been dispatched to your location.")
+        # Logic here to send a text to your phone via Twilio or Email
