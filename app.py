@@ -71,8 +71,7 @@ st.markdown("<h3 style='text-align: center; font-size: 1.2em; font-weight: 400; 
 st.markdown("<p class='subtext'>Industrial Storage | Infrastructure | Excellence</p>", unsafe_allow_html=True)
 
 st.divider()
-
-# --- APP NAVIGATION ---
+st.image("fife-lot.jpg", use_column_width=True, caption="3275 Red Fife Road - Phase 1 Secure Storage")
 tab1, tab2, tab3 = st.tabs(["RESERVE MONTHLY", "HOURLY QUICK-PARK", "MAINTENANCE & REFERRALS"])
 
 # --- TAB 1: MONTHLY LEASE ---
