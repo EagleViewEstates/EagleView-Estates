@@ -20,7 +20,7 @@ st.markdown("""
         width: 100%; border-radius: 4px; height: 3.5em; background-color: #000000; 
         color: #3b82f6; font-weight: bold; border: 1px solid #1e40af; letter-spacing: 2px; text-transform: uppercase;
     }
-    .stButton>button:hover { background-color: #3b82f6; color: #ffffff; border: 1px solid #ffffff; }
+    .stButton>button:hover { background-color: #3b82f6; color: #ffffff; border: 1px solid #ffffff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
     
     .price-box { 
         padding: 30px; background-color: #0a0a0a; border-radius: 4px; border: 1px solid #1e3a8a; 
@@ -38,13 +38,12 @@ st.markdown("<p class='subtext'>Industrial Storage | Rosser, MB</p>", unsafe_all
 
 tab1, tab2, tab3 = st.tabs(["RESERVE MONTHLY", "HOURLY QUICK-PARK", "MAINTENANCE"])
 
-# --- TAB 1: MONTHLY (STAYS SECURE) ---
+# --- TAB 1: MONTHLY ---
 with tab1:
     st.write("### Monthly Staging")
     pad_choice = st.selectbox("Pad Size", ["Trade Pad (1k sqft)", "Contractor Hub (2.5k sqft)", "Heavy Civil Fleet (5k sqft)"])
     lease_term = st.slider("Lease Duration (Months)", 1, 12, 1)
     
-    # Pricing logic
     rates = {"Trade Pad (1k sqft)": 1500, "Contractor Hub (2.5k sqft)": 2500, "Heavy Civil Fleet (5k sqft)": 3750}
     total = (rates[pad_choice] * lease_term) - (rates[pad_choice] if lease_term >= 6 else 0)
     
@@ -55,7 +54,7 @@ with tab1:
 # --- TAB 2: HOURLY (PAY TO UNLOCK) ---
 with tab2:
     st.write("### Hourly Rapid-Park")
-    st.caption("Payment required prior to gate code generation.")
+    st.caption("Secure payment required for gate code generation.")
     
     col_h, col_v = st.columns(2)
     with col_h:
@@ -68,29 +67,30 @@ with tab2:
     
     st.markdown(f"<div class='price-box'><p style='color:#60a5fa;'>Amount Due Now</p><h3>${due_now:,.2f}</h3></div>", unsafe_allow_html=True)
     
-    # PAYMENT FLOW
     if 'payment_complete' not in st.session_state:
         st.session_state.payment_complete = False
 
     if not st.session_state.payment_complete:
-        if st.button(f"PAY ${due_now:,.2f} & REVEAL CODE"):
-            # This is where the Stripe Link would go
+        if st.button(f"PAY ${due_now:,.2f} & UNLOCK GATE"):
+            # Simulation of payment success
             st.session_state.payment_complete = True
             st.rerun()
     else:
-        st.success("✅ Payment Verified")
-        # Generate the PIN only AFTER payment is set to True
+        st.success("✅ Payment Confirmed")
         st.markdown(f"""
-            <div style="border: 2px dashed #3b82f6; padding: 20px; text-align: center; border-radius: 10px;">
+            <div style="border: 2px dashed #3b82f6; padding: 20px; text-align: center; border-radius: 10px; background-color: #0a0a0a;">
                 <p style="margin:0; font-size: 0.8em; color: #60a5fa;">YOUR TEMPORARY ACCESS PIN</p>
                 <h1 style="margin:0; color: #ffffff !important; letter-spacing: 5px;">#EV-{datetime.datetime.now().strftime('%M%S')}</h1>
-                <p style="margin-top:10px; font-size: 0.7em;">Valid for {hours} hours from now.</p>
+                <p style="margin-top:10px; font-size: 0.7em;">Valid for {hours} hours.</p>
             </div>
         """, unsafe_allow_html=True)
-        if st.button("Reset for New Booking"):
+        if st.button("New Booking"):
             st.session_state.payment_complete = False
             st.rerun()
 
+# --- TAB 3: MAINTENANCE ---
 with tab3:
     st.write("### EagleView Earthworks")
     st.button("DISPATCH GRADER")
+    st.divider()
+    st.write("Refer a partner for a $500 credit.")
