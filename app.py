@@ -2,91 +2,137 @@ import streamlit as st
 import datetime
 
 # --- CONFIG & THEME ---
-st.set_page_config(page_title="EagleView estates", layout="centered", page_icon="🦅")
+st.set_page_config(page_title="EagleView Estates", layout="centered", page_icon="🦅")
 
-# Custom CSS for the EagleView Brand
+# Custom CSS for the Deep Black & Elegant Aesthetic
 st.markdown("""
     <style>
-    .stApp { background-color: #fcfcfc; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background: linear-gradient(90deg, #1e3a8a, #3b82f6); color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background: #1e40af; border: none; }
-    .price-box { padding: 20px; background-color: #ffffff; border-radius: 15px; border: 2px solid #e2e8f0; text-align: center; }
-    .promo-text { color: #16a34a; font-weight: bold; font-size: 0.9em; }
+    /* Force Deep Black Background */
+    .stApp { background-color: #050505; color: #ffffff; }
+    
+    /* Elegant Typography */
+    h1, h2, h3, h4, p, span { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; }
+    .subtext { color: #a1a1aa !important; font-size: 1.1em; text-align: center; margin-bottom: 20px;}
+    
+    /* Sleek, Premium Buttons */
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 4px; 
+        height: 3.5em; 
+        background-color: #1a1a1a; 
+        color: #ffffff; 
+        font-weight: bold; 
+        border: 1px solid #333333; 
+        transition: 0.3s;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .stButton>button:hover { background-color: #ffffff; color: #000000; border: 1px solid #ffffff; }
+    
+    /* Dark Mode Pricing Boxes */
+    .price-box { 
+        padding: 25px; 
+        background-color: #0a0a0a; 
+        border-radius: 8px; 
+        border: 1px solid #1f2937; 
+        text-align: center; 
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    }
+    
+    .promo-text { color: #34d399 !important; font-weight: bold; font-size: 0.9em; letter-spacing: 0.5px;}
+    
+    /* Style Tabs for Dark Mode */
+    .stTabs [data-baseweb="tab-list"] { background-color: transparent; }
+    .stTabs [data-baseweb="tab"] { color: #a1a1aa; }
+    .stTabs [aria-selected="true"] { color: #ffffff !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- DAILY PROMPT / NOTIFICATION ---
-# Use st.toast for a "Daily Prompt" that disappears, or st.info for a sticky one.
-st.toast("🚨 JUNE 1st LAUNCH: Only 4 Heavy Civil Pads remaining at Red Fife Rd!", icon="🔥")
+st.toast("🚨 JUNE 1st LAUNCH: Phase 1 Pads available for immediate reservation.", icon="🦅")
+
+# --- HEADER & VIDEO (The Cinematic First Page) ---
+st.markdown("<h1 style='text-align: center; font-size: 3em; font-weight: 300; letter-spacing: 3px;'>EAGLEVIEW ESTATES</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtext'>The Pinnacle of Modern Industrial Design | CentrePort, MB</p>", unsafe_allow_html=True)
+
+# Embed the Video (Requires the mp4 file in your GitHub repo)
+try:
+    st.video("eagleview_promo.mp4", format="video/mp4", start_time=0)
+except Exception as e:
+    st.info("Video loading... Please ensure 'eagleview_promo.mp4' is in the repository.")
+
+st.divider()
 
 # --- APP NAVIGATION ---
-tab1, tab2, tab3 = st.tabs(["🏗️ Monthly Lease", "⏱️ Hourly Quick-Park", "🚜 Maintenance & Referrals"])
+tab1, tab2, tab3 = st.tabs(["RESERVE MONTHLY", "HOURLY QUICK-PARK", "MAINTENANCE & REFERRALS"])
 
-# --- TAB 1: MONTHLY LEASE (With Promo Logic) ---
+# --- TAB 1: MONTHLY LEASE ---
 with tab1:
-    st.title("🦅 EagleView Estates")
-    st.caption("Secure Industrial Storage | CentrePort, MB")
-
+    st.write("### Secure Your Space")
+    
     col_a, col_b = st.columns(2)
     with col_a:
-        pad_choice = st.selectbox("Select Pad Size", ["Small Trade (1k sqft)", "Contractor (2.5k sqft)", "Heavy Civil (5k sqft)"])
+        pad_choice = st.selectbox("Select Pad Configuration", ["Trade Pad (1k sqft)", "Contractor Hub (2.5k sqft)", "Heavy Civil Fleet (5k sqft)"])
     with col_b:
         lease_term = st.slider("Lease Duration (Months)", 1, 12, 1)
 
-    # Base Pricing Data
-    rates = {"Small Trade (1k sqft)": 1500, "Contractor (2.5k sqft)": 2500, "Heavy Civil (5k sqft)": 3750}
+    rates = {"Trade Pad (1k sqft)": 1500, "Contractor Hub (2.5k sqft)": 2500, "Heavy Civil Fleet (5k sqft)": 3750}
     base_price = rates[pad_choice]
     
-    # PROMO LOGIC: 6 Months = 1st Month Free
     total_contract_value = base_price * lease_term
     savings = 0
     if lease_term >= 6:
         savings = base_price
-        st.markdown(f"<p class='promo-text'>✅ '6-MONTH BULK' APPLIED: 1st Month is FREE (${base_price:,.0f} value)</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='promo-text'>✓ PLATINUM TIER APPLIED: First Month Complimentary (${base_price:,.0f} value)</p>", unsafe_allow_html=True)
 
     final_due = total_contract_value - savings
 
     st.markdown(f"""
         <div class="price-box">
-            <h4 style='color:gray;'>Total Contract Value</h4>
-            <h2 style='color:#1e3a8a;'>${final_due:,.2f}</h2>
-            <p>Due Today: ${base_price if lease_term < 6 else 0:,.2f}</p>
+            <p style='color:#a1a1aa; text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px;'>Total Contract Value</p>
+            <h2 style='color:#ffffff; font-size: 2.5em; margin: 10px 0;'>${final_due:,.2f}</h2>
+            <p style='color:#a1a1aa;'>Due Today to Secure Gate Access: <span style='color:#ffffff; font-weight:bold;'>${base_price if lease_term < 6 else 0:,.2f}</span></p>
         </div>
     """, unsafe_allow_html=True)
 
-    if st.button("RESERVE PAD & SIGN LEASE"):
-        st.balloons()
-        st.success("Redirecting to Secure Payment...")
+    st.write("") # Spacer
+    if st.button("AUTHORIZE LEASE & PAYMENT"):
+        st.success("Redirecting to Secure Encrypted Checkout...")
 
 # --- TAB 2: HOURLY QUICK-PARK ---
 with tab2:
-    st.title("⏱️ Hourly Quick-Park")
-    st.write("Need a spot for a few hours? Book instantly.")
+    st.write("### On-Demand Access")
     
     hr_col1, hr_col2 = st.columns(2)
     with hr_col1:
-        hours = st.number_input("How many hours?", 1, 24, 2)
+        hours = st.number_input("Duration Requested (Hours)", 1, 24, 2)
     with hr_col2:
-        vehicle_type = st.radio("Vehicle Type", ["Service Van", "Semi-Truck", "Heavy Equipment"])
+        vehicle_type = st.radio("Asset Classification", ["Service Vehicle", "Transport/Semi", "Heavy Civil Machinery"])
 
-    hr_rates = {"Service Van": 15, "Semi-Truck": 25, "Heavy Equipment": 40}
+    hr_rates = {"Service Vehicle": 15, "Transport/Semi": 25, "Heavy Civil Machinery": 40}
     total_hr = hr_rates[vehicle_type] * hours
 
-    st.info(f"Total for Hourly Parking: **${total_hr:,.2f}**")
-    if st.button("GENERATE ONE-TIME ACCESS CODE"):
-        st.code(f"GATE CODE: #FIFE-{datetime.datetime.now().strftime('%M%S')}")
+    st.markdown(f"""
+        <div class="price-box" style="padding: 15px;">
+            <h4>Total for {hours} Hours: ${total_hr:,.2f}</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("")
+    if st.button("GENERATE TEMPORARY GATE CODE"):
+        st.code(f"TEMPORARY ACCESS PIN: #EV-{datetime.datetime.now().strftime('%M%S')}")
 
 # --- TAB 3: MAINTENANCE & REFERRALS ---
 with tab3:
-    st.subheader("🚜 Earthworks Maintenance")
-    with st.expander("Request Site Service"):
-        st.selectbox("Service Required", ["Gravel Grading", "Snow Clearing", "Dust Control"])
-        st.button("Dispatch EagleView Crew")
+    st.write("### Earthworks Fleet Services")
+    with st.expander("Request On-Site Maintenance"):
+        st.selectbox("Service Classification", ["Precision Grading", "Winter Maintenance / Snow", "Dust Suppression"])
+        st.button("DISPATCH EAGLEVIEW CREW")
 
     st.divider()
     
-    st.subheader("🤝 Refer-a-Friend")
-    st.write("Refer a fellow contractor. If they sign a 6-month lease, you get **$500 off** your next month.")
-    ref_code = st.text_input("Enter Friend's Referral Code to Apply Discount")
+    st.write("### The EagleView Network")
+    st.write("Refer a qualified industry partner. A 6-month lease signature grants a **$500 premium credit** to your account.")
+    ref_code = st.text_input("Enter Partner Referral Code")
     if ref_code:
-        st.success("Referral code valid! $500 will be deducted from checkout.")
+        st.success("Referral verified. Credit will be applied at checkout.")
