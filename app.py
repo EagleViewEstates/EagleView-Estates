@@ -55,4 +55,38 @@ with tab1:
     """, unsafe_allow_html=True)
 
     if st.button("RESERVE PAD & SIGN LEASE"):
-        st.
+        st.balloons()
+        st.success("Redirecting to Secure Payment...")
+
+# --- TAB 2: HOURLY QUICK-PARK ---
+with tab2:
+    st.title("⏱️ Hourly Quick-Park")
+    st.write("Need a spot for a few hours? Book instantly.")
+    
+    hr_col1, hr_col2 = st.columns(2)
+    with hr_col1:
+        hours = st.number_input("How many hours?", 1, 24, 2)
+    with hr_col2:
+        vehicle_type = st.radio("Vehicle Type", ["Service Van", "Semi-Truck", "Heavy Equipment"])
+
+    hr_rates = {"Service Van": 15, "Semi-Truck": 25, "Heavy Equipment": 40}
+    total_hr = hr_rates[vehicle_type] * hours
+
+    st.info(f"Total for Hourly Parking: **${total_hr:,.2f}**")
+    if st.button("GENERATE ONE-TIME ACCESS CODE"):
+        st.code(f"GATE CODE: #FIFE-{datetime.datetime.now().strftime('%M%S')}")
+
+# --- TAB 3: MAINTENANCE & REFERRALS ---
+with tab3:
+    st.subheader("🚜 Earthworks Maintenance")
+    with st.expander("Request Site Service"):
+        st.selectbox("Service Required", ["Gravel Grading", "Snow Clearing", "Dust Control"])
+        st.button("Dispatch EagleView Crew")
+
+    st.divider()
+    
+    st.subheader("🤝 Refer-a-Friend")
+    st.write("Refer a fellow contractor. If they sign a 6-month lease, you get **$500 off** your next month.")
+    ref_code = st.text_input("Enter Friend's Referral Code to Apply Discount")
+    if ref_code:
+        st.success("Referral code valid! $500 will be deducted from checkout.")
