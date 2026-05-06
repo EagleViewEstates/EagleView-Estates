@@ -1,11 +1,34 @@
-import streamlit as st
-import os
 import smtplib
+import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # --- CONFIG ---
 st.set_page_config(page_title="EagleView Estates | EOI Portal", layout="centered", page_icon="🦅")
+
+# --- BACKGROUND IMAGE HELPER ---
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_png_as_page_bg(bin_file):
+    if os.path.exists(bin_file):
+        bin_str = get_base64_of_bin_file(bin_file)
+        page_bg_img = f'''
+        <style>
+        .stApp {{
+            background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url("data:image/jpg;base64,{bin_str}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        </style>
+        '''
+        st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# Apply the background
+set_png_as_page_bg('site_photo.jpg')
 
 # --- DYNAMIC PRICING RANGES ---
 PRICING_DEALS = {
@@ -103,7 +126,8 @@ The EagleView Team
 # --- CSS: GOLD & BLACK THEME ---
 st.markdown("""
     <style>
-    .stApp { background-color: #050505; color: #ffffff; }
+    /* Transparency for containers to show background */
+    .stApp { color: #ffffff; }
     .brand-gold {
         text-align: center; font-family: 'serif'; font-size: 3.5em; font-weight: 200; letter-spacing: 10px;
         margin: 40px 0 10px 0; background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
@@ -113,8 +137,15 @@ st.markdown("""
     
     .gold-text { color: #d4af37; font-weight: bold; }
     
+    /* Make form area slightly darker for readability over image */
+    [data-testid="stForm"] {
+        background-color: rgba(0, 0, 0, 0.7) !important;
+        border: 1px solid #d4af37 !important;
+        padding: 30px !important;
+    }
+
     .eoi-document {
-        background-color: #000000; color: #ffffff; padding: 45px; border: 1px solid #d4af37;
+        background-color: rgba(0, 0, 0, 0.85); color: #ffffff; padding: 45px; border: 1px solid #d4af37;
         border-radius: 2px; font-family: 'serif'; line-height: 1.4; margin-bottom: 30px;
         box-shadow: 0 0 40px rgba(212, 175, 55, 0.2);
     }
@@ -162,7 +193,7 @@ elif st.session_state.page == 'eoi':
     st.markdown(f"""
     <div class='eoi-document'>
         <h2 style='text-align: center; color: #d4af37; text-transform: uppercase;'>Expression of Interest</h2>
-        <p><span class='gold-text'>PROSPECTIVE TENANT:</span> {st.session_state.user_data['name']}</p>
+        <p><span class='gold-text'>PROSPECTIVE TENANT:</span> {st.session_state.user_state['name'] if 'name' in st.session_state.user_data else 'Valued Partner'}</p>
         <hr style='border: 0.5px solid #d4af37;'>
         <p><b>1. SCOPE:</b> Requirement identified for <span class='gold-text'>{st.session_state.user_data['q1']}</span>.</p>
         <p><b>2. TERMS:</b> Accessing pricing across <b>Daily, Weekly, Monthly, Yearly, and Multi-Year</b> terms.</p>
@@ -184,16 +215,12 @@ elif st.session_state.page == 'thankyou':
     st.markdown("<div style='text-align:center; margin-top:30px; font-size:4em;'>✔️</div>", unsafe_allow_html=True)
     st.markdown("<div style='color:#d4af37; font-size: 1.8em; text-align:center; letter-spacing: 5px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
     
-    # RE-ENGINEERED JUNK WARNING BOX
     st.markdown(f"""
         <div style='color:#ffffff; text-align:center; max-width:600px; margin: 30px auto; line-height:1.6; font-size:1.1em;'>
-            Thank you, <span class='gold-text'>{st.session_state.user_data['name']}</span>. <br>
-            Your requirements are now being reviewed by our development team. <br><br>
-            Your <b>Full Multi-Term Pricing Package</b> has been dispatched to: <br>
-            <span style='color:#d4af37; font-family:monospace; font-size:1.2em;'>{st.session_state.user_data['contact']}</span>
+            Thank you. Your <b>Full Multi-Term Pricing Package</b> has been dispatched.
         </div>
         
-        <div style='background: linear-gradient(145deg, #1a1a1a, #000000); 
+        <div style='background: linear-gradient(145deg, rgba(26,26,26,0.9), rgba(0,0,0,0.9)); 
                     border: 2px solid #d4af37; 
                     padding: 25px; 
                     border-radius: 10px; 
