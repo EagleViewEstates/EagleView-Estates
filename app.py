@@ -7,37 +7,81 @@ from email.mime.multipart import MIMEMultipart
 # --- CONFIG ---
 st.set_page_config(page_title="EagleView Estates | EOI Portal", layout="centered", page_icon="🦅")
 
+# --- PRICING ENGINE ---
+# Update these values to your actual rates
+PRICING_DEALS = {
+    "💎 ANCHOR TENANT: 5-Acre Parcel": {
+        "rate": "$12,500/month (Triple Net)",
+        "details": "Full 5-acre integrated site, exclusive biometric gate access, and 24/7 priority maintenance."
+    },
+    "Dedicated Pad (1-5k sqft)": {
+        "rate": "$2,500/month",
+        "details": "Engineered compacted gravel pad with dedicated LED lighting and CCTV coverage."
+    },
+    "Hourly Flex Staging": {
+        "rate": "$75/hour (4-hour minimum)",
+        "details": "Rapid-access staging area for cross-docking and short-term equipment positioning."
+    },
+    "Winter Storage": {
+        "rate": "$1,200/unit (Seasonal)",
+        "details": "Secure winterization storage for heavy fleet equipment from Nov 1 to April 1."
+    }
+}
+
 # --- SPAM-PROOFED DUAL-EMAIL FUNCTION ---
 def send_emails(data, is_eoi=False):
     try:
         sender_email = "info@eagleviewearthworks.com"
         password = st.secrets["EMAIL_PASSWORD"]
         
+        # Get dynamic pricing based on selection
+        selected_scope = data.get('q1', "Dedicated Pad (1-5k sqft)")
+        price_info = PRICING_DEALS.get(selected_scope, PRICING_DEALS["Dedicated Pad (1-5k sqft)"])
+        
         # 1. NOTIFICATION TO YOU (ADMIN)
         msg_to_admin = MIMEMultipart()
         msg_to_admin["From"] = f"EagleView Estates Portal <{sender_email}>"
         msg_to_admin["To"] = sender_email
-        msg_to_admin["Subject"] = f"🚨 NEW EOI: {data['name']} - CentrePort"
+        msg_to_admin["Subject"] = f"🚨 NEW EOI: {data['name']} - {selected_scope}"
         
-        admin_body = f"Official Site Record - EOI Received:\n\nCompany: {data['name']}\nContact: {data['contact']}\nScope: {data['q1']}\nTimeline: {data['q3']}\n\nSigned By: {data.get('signature', 'Inquiry Only')}\nDate: May 5, 2026"
+        admin_body = f"""
+Official Site Record - EOI Received:
+
+Company: {data['name']}
+Contact: {data['contact']}
+Selection: {selected_scope}
+Timeline: {data['q3']}
+Quoted Rate: {price_info['rate']}
+
+Signed By: {data.get('signature', 'Inquiry Only')}
+Date: May 5, 2026
+        """
         msg_to_admin.attach(MIMEText(admin_body, "plain"))
 
-        # 2. THANK YOU TO CLIENT (SPAM-OPTIMIZED)
+        # 2. THANK YOU TO CLIENT WITH PRICING
         msg_to_client = MIMEMultipart()
         msg_to_client["From"] = f"EagleView Estates <{sender_email}>"
         msg_to_client["To"] = data['contact']
-        msg_to_client["Subject"] = f"Regarding your CentrePort Inquiry - {data['name']}"
+        msg_to_client["Subject"] = f"Site Options & Pricing for {data['name']}"
         
         client_body = f"""
 Dear {data['name']},
 
-Thank you for your interest in EagleView Estates at CentrePort Canada.
+Thank you for submitting your Expression of Interest for EagleView Estates at CentrePort Canada.
 
-We have received your formal Expression of Interest for the {data['q1']} configuration. Our development team is currently reviewing the site engineering plans to ensure they meet your specified target deployment of {data['q3']}.
+Based on your strategic requirements for a {selected_scope}, we have generated the following preliminary pricing and site options:
 
-We will be transmitting formal lease options, engineered site specifications, and current pricing structures to this email address immediately.
+---
+SELECTED CONFIGURATION: {selected_scope}
+PROPOSED RATE: {price_info['rate']}
+SITE DETAILS: {price_info['details']}
+TARGET DEPLOYMENT: {data['q3']}
+---
 
-We look forward to the possibility of partnering with your firm.
+NEXT STEPS:
+Our development team is currently finalizing the engineered grading for the June 1st launch. Your EOI has secured your priority position in the queue. 
+
+A representative will reach out shortly to discuss specific site layout adjustments and formalize the lease agreement.
 
 Best regards,
 
@@ -54,7 +98,6 @@ www.eagleviewearthworks.com
         server.login(sender_email, password)
         server.sendmail(sender_email, sender_email, msg_to_admin.as_string())
         
-        # Send to client if email is valid
         if "@" in data['contact']:
             server.sendmail(sender_email, data['contact'], msg_to_client.as_string())
         
@@ -99,7 +142,7 @@ if st.session_state.page == 'assessment':
 
     with st.form("assessment_form"):
         st.write("### Strategic Site Assessment")
-        q1 = st.selectbox("1. Operational Scope", ["💎 ANCHOR TENANT: 5-Acre Parcel", "Dedicated Pad (1-5k sqft)", "Hourly Flex Staging", "Winter Storage"])
+        q1 = st.selectbox("1. Operational Scope", list(PRICING_DEALS.keys()))
         q2 = st.select_slider("2. Strategic Value of Location", options=["Low", "Neutral", "Important", "Strategic", "Critical"])
         q3 = st.radio("3. Target Deployment Date", ["June 1st - Immediate", "Summer 2026", "Fall/Winter 2026"])
         q4 = st.multiselect("4. Critical Site Amenities", ["Biometric Access", "LED Lighting", "CCTV Surveillance", "Engineered Gravel", "Maintenance Support"])
@@ -150,9 +193,9 @@ elif st.session_state.page == 'thankyou':
     st.markdown(f"""
         <div style='color:#888; text-align:center; max-width:600px; margin: 40px auto; line-height:1.6;'>
             Thank you, <b>{st.session_state.user_data['name']}</b>. Your requirements have been integrated. <br><br>
-            A confirmation has been sent to <b>{st.session_state.user_data['contact']}</b>.<br><br>
+            A confirmation including your <b>custom pricing package</b> has been sent to <b>{st.session_state.user_data['contact']}</b>.<br><br>
             <div style='background-color:#111; padding:15px; border:1px solid #333; color:#d4af37; font-size:0.9em;'>
-            <b>IMPORTANT:</b> If the pricing package does not arrive within 60 seconds, please check your <b>Junk/Spam folder</b> and mark the email as 'Not Junk' to ensure future priority updates reach you.
+            <b>IMPORTANT:</b> If the pricing package does not arrive within 60 seconds, please check your <b>Junk/Spam folder</b>.
             </div>
             <br>
             We look forward to partnering in the future.
