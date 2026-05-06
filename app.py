@@ -44,6 +44,8 @@ class PricingDeal:
     details: str
 
 
+FULL_PRICING_REQUEST_LABEL = "📄 Send Full Pricing Schedule"
+
 PRICING_DEALS: Dict[str, PricingDeal] = {
     "💎 Anchor Tenant: 5-Acre Parcel": PricingDeal(
         daily="$1,000 - $1,500/day",
@@ -264,38 +266,25 @@ def get_email_password() -> Optional[str]:
         return None
 
 
-def build_admin_email(data: dict, pricing: PricingDeal) -> MIMEMultipart:
-    msg = MIMEMultipart()
-    msg["From"] = f"EagleView Portal <{SENDER_EMAIL}>"
-    msg["To"] = SENDER_EMAIL
-    msg["Subject"] = f"New EOI Submission: {data['name']}"
-
-    amenities = ", ".join(data.get("amenities", [])) or "None selected"
-
-    body = f"""
-New Expression of Interest received.
-
-Company / Representative: {data['name']}
-Email: {data['email']}
-Operational Scope: {data['scope']}
-Strategic Value: {data['strategic_value']}
-Target Deployment: {data['deployment_window']}
-Amenities: {amenities}
-Digital Signature: {data.get('signature', 'N/A')}
-
-Pricing Snapshot:
-Daily: {pricing.daily}
-Weekly: {pricing.weekly}
-Monthly: {pricing.monthly}
-Yearly: {pricing.yearly}
-Multi-Year: {pricing.multi_year}
-
-Notes:
-This is an expression of interest only. No lease has been executed through the portal.
+def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
+    return f"""
+{scope}
+- Daily: {pricing.daily}
+- Weekly: {pricing.weekly}
+- Monthly: {pricing.monthly}
+- Yearly: {pricing.yearly}
+- Multi-Year: {pricing.multi_year}
+- Details: {pricing.details}
 """.strip()
 
-    msg.attach(MIMEText(body, "plain"))
-    return msg
+
+def format_full_pricing_schedule() -> str:
+    blocks = [format_single_pricing_block(scope, pricing) for scope, pricing in PRICING_DEALS.items()]
+    return "\n\n".join(blocks)
+
+
+def is_full_pricing_request(data: dict) -> bool:
+    return data.get("scope") == FULL_PRI
 
 
 def build_client_email(data: dict, pricing: PricingDeal) -> MIMEMultipart:
