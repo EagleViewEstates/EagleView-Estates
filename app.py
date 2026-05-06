@@ -1,7 +1,6 @@
 import base64
 import html
 import logging
-import os
 import re
 import smtplib
 import ssl
@@ -9,14 +8,9 @@ from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
-
-# ============================================================
-# EagleView Estates | Expression of Interest Portal
-# Upgraded Streamlit single-file app
-# ============================================================
 
 APP_TITLE = "EagleView Estates | EOI Portal"
 APP_ICON = "🦅"
@@ -24,7 +18,8 @@ BRAND_NAME = "EagleView Estates"
 LOCATION_LINE = "CentrePort Canada • Winnipeg"
 BACKGROUND_IMAGE = Path("site_photo.jpg")
 
-SENDER_EMAIL = "info@eagleviewearthworks.com"
+DEFAULT_SENDER_EMAIL = "info@eagleviewearthworks.com"
+DEFAULT_ADMIN_EMAIL = "info@eagleviewearthworks.com"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 
@@ -44,7 +39,17 @@ class PricingDeal:
     details: str
 
 
-FULL_PRICING_REQUEST_LABEL = "📄 Send Full Pricing Schedule"
+@dataclass
+class EmailSendResult:
+    client_sent: bool = False
+    admin_sent: bool = False
+    client_error: str = ""
+    admin_error: str = ""
+    smtp_username: str = ""
+    sender_email: str = ""
+    admin_email: str = ""
+    client_email: str = ""
+
 
 PRICING_DEALS: Dict[str, PricingDeal] = {
     "💎 Anchor Tenant: 5-Acre Parcel": PricingDeal(
@@ -101,15 +106,25 @@ DEPLOYMENT_WINDOWS = [
 VALUE_OPTIONS = ["Low", "Neutral", "Important", "Strategic", "Critical"]
 
 
-# -----------------------------
-# Page setup and styling
-# -----------------------------
+def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
+    try:
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
+
+
+def get_email_config() -> Tuple[str, str, str, Optional[str]]:
+    sender_email = get_secret("SENDER_EMAIL", DEFAULT_SENDER_EMAIL)
+    admin_email = get_secret("ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL)
+    smtp_username = get_secret("SMTP_USERNAME", sender_email)
+    password = get_secret("EMAIL_PASSWORD")
+    return sender_email, admin_email, smtp_username, password
+
 
 st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
 
 
 def encode_file_base64(path: Path) -> Optional[str]:
-    """Return a base64 string for a local file, or None if unavailable."""
     try:
         if not path.exists():
             return None
@@ -120,18 +135,17 @@ def encode_file_base64(path: Path) -> Optional[str]:
 
 
 def apply_global_styles() -> None:
-    """Apply the branded page background and CSS."""
     bg_image = encode_file_base64(BACKGROUND_IMAGE)
 
     if bg_image:
-        background_css = f'''
+        background_css = f"""
         .stApp {{
             background-image: linear-gradient(rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.82)), url("data:image/jpg;base64,{bg_image}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        '''
+        """
     else:
         background_css = ".stApp { background-color: #050505; }"
 
@@ -195,6 +209,16 @@ def apply_global_styles() -> None:
             color: #ffffff;
         }}
 
+        .diagnostic-card {{
+            background-color: rgba(0, 0, 0, 0.76);
+            border: 1px solid rgba(212, 175, 55, 0.65);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-top: 1rem;
+            color: #ffffff;
+            font-size: 0.9rem;
+        }}
+
         .stButton > button, .stFormSubmitButton > button {{
             background-color: #d4af37 !important;
             color: #000000 !important;
@@ -212,7 +236,7 @@ def apply_global_styles() -> None:
             box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
         }}
 
-        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput {{
+        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox {{
             color: #ffffff !important;
         }}
         </style>
@@ -226,341 +250,28 @@ def render_header() -> None:
     st.markdown(f"<div class='sub-brand'>{LOCATION_LINE}</div>", unsafe_allow_html=True)
 
 
-# -----------------------------
-# Validation and state helpers
-# -----------------------------
-
-
 def is_valid_email(email: str) -> bool:
     return bool(EMAIL_PATTERN.match(email.strip()))
 
 
 def clean_text(value: str) -> str:
-    """Trim user input and keep it safe for HTML rendering."""
     return html.escape(value.strip())
 
 
 def initialize_state() -> None:
     st.session_state.setdefault("page", "assessment")
     st.session_state.setdefault("user_data", {})
-    st.session_state.setdefault("email_sent", False)
+    st.session_state.setdefault("email_result", None)
 
 
 def reset_portal() -> None:
     st.session_state.page = "assessment"
     st.session_state.user_data = {}
-    st.session_state.email_sent = False
+    st.session_state.email_result = None
     st.rerun()
-
-
-# -----------------------------
-# Email handling
-# -----------------------------
-
-
-def get_email_password() -> Optional[str]:
-    """Read the email password from Streamlit secrets."""
-    try:
-        return st.secrets.get("EMAIL_PASSWORD")
-    except Exception:
-        return None
 
 
 def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
     return f"""
 {scope}
-- Daily: {pricing.daily}
-- Weekly: {pricing.weekly}
-- Monthly: {pricing.monthly}
-- Yearly: {pricing.yearly}
-- Multi-Year: {pricing.multi_year}
-- Details: {pricing.details}
-""".strip()
-
-
-def format_full_pricing_schedule() -> str:
-    blocks = [format_single_pricing_block(scope, pricing) for scope, pricing in PRICING_DEALS.items()]
-    return "
-
-".join(blocks)
-
-
-def is_full_pricing_request(data: dict) -> bool:
-    return data.get("scope") == FULL_PRICING_REQUEST_LABEL or bool(data.get("send_full_pricing"))
-
-
-def build_admin_email(data: dict) -> MIMEMultipart:
-    msg = MIMEMultipart()
-    msg["From"] = f"EagleView Portal <{SENDER_EMAIL}>"
-    msg["To"] = SENDER_EMAIL
-    msg["Subject"] = f"New EOI Submission: {data['name']}"
-
-    amenities = ", ".join(data.get("amenities", [])) or "None selected"
-    pricing_snapshot = format_full_pricing_schedule() if is_full_pricing_request(data) else format_single_pricing_block(data["scope"], PRICING_DEALS[data["scope"]])
-
-    body = f"""
-New Expression of Interest received.
-
-Company / Representative: {data['name']}
-Email: {data['email']}
-Operational Scope: {data['scope']}
-Strategic Value: {data['strategic_value']}
-Target Deployment: {data['deployment_window']}
-Amenities: {amenities}
-Full Pricing Schedule Requested: {'Yes' if is_full_pricing_request(data) else 'No'}
-Digital Signature: {data.get('signature', 'N/A')}
-
-Pricing Requested:
-{pricing_snapshot}
-
-Notes:
-This is an expression of interest only. No lease has been executed through the portal.
-""".strip()
-
-    msg.attach(MIMEText(body, "plain"))
-    return msg
-
-
-def build_client_email(data: dict) -> MIMEMultipart:
-    msg = MIMEMultipart()
-    msg["From"] = f"EagleView Estates <{SENDER_EMAIL}>"
-    msg["To"] = data["email"]
-    msg["Bcc"] = SENDER_EMAIL
-    msg["Subject"] = "EagleView Estates: Complete Pricing Schedule & Site Interest Confirmation"
-
-    if is_full_pricing_request(data):
-        pricing_intro = "Complete current pricing schedule:"
-        pricing_block = format_full_pricing_schedule()
-        site_notes = "A full pricing schedule was requested. Final recommendations will depend on required yard size, access frequency, equipment type, lease term, and deployment timing."
-    else:
-        pricing_intro = f"Current pricing indication for {data['scope']}:"
-        pricing_block = format_single_pricing_block(data["scope"], PRICING_DEALS[data["scope"]])
-        site_notes = PRICING_DEALS[data["scope"]].details
-
-    body = f"""
-Hello {data['name']},
-
-Thank you for submitting your Statement of Interest for EagleView Estates.
-
-Selected site requirement:
-{data['scope']}
-
-{pricing_intro}
-{pricing_block}
-
-Site notes:
-{site_notes}
-
-Important disclaimer:
-This submission confirms interest only. Pricing is indicative and subject to availability, final site configuration, operating requirements, lease terms, and market conditions. No lease, reservation, or binding commitment is created until a formal agreement is reviewed and executed by both parties.
-
-Best regards,
-The EagleView Estates Team
-""".strip()
-
-    msg.attach(MIMEText(body, "plain"))
-    return msg
-
-
-def send_emails(data: dict) -> bool:
-    """Send admin notification and client confirmation email."""
-    scope = data.get("scope")
-    password = get_email_password()
-
-    if scope != FULL_PRICING_REQUEST_LABEL and scope not in PRICING_DEALS:
-        st.error("Pricing package could not be found. Please restart the form and try again.")
-        return False
-
-    if not password:
-        st.error("Email is not configured. Add EMAIL_PASSWORD to Streamlit secrets.")
-        return False
-
-    try:
-        admin_msg = build_admin_email(data)
-        client_msg = build_client_email(data)
-
-        context = ssl.create_default_context()
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.ehlo()
-            server.login(SENDER_EMAIL, password)
-
-            # Send the client confirmation first. If this fails, do not show the user a false success message.
-            server.send_message(client_msg)
-            server.send_message(admin_msg)
-
-        logger.info("EOI confirmation and admin emails sent successfully for %s", data["email"])
-        return True
-
-    except smtplib.SMTPAuthenticationError:
-        logger.exception("SMTP authentication failed")
-        st.error("Email authentication failed. Check the sender account and Streamlit secret.")
-        return False
-    except smtplib.SMTPException as exc:
-        logger.exception("SMTP error: %s", exc)
-        st.error("The submission was received, but the email could not be sent. Please contact EagleView directly.")
-        return False
-    except Exception as exc:
-        logger.exception("Unexpected email error: %s", exc)
-        st.error("An unexpected error occurred while sending the email.")
-        return False
-
-
-# -----------------------------
-# Pages
-# -----------------------------
-
-
-def assessment_page() -> None:
-    render_header()
-
-    with st.form("assessment_form", clear_on_submit=False):
-        st.markdown("### <span class='gold-text'>Strategic Site Assessment</span>", unsafe_allow_html=True)
-
-        scope_options = list(PRICING_DEALS.keys())
-        scope = st.selectbox("1. Operational Scope", scope_options)
-        send_full_pricing = st.checkbox(
-            "Send me the complete pricing schedule for all storage options",
-            value=True,
-            help="When selected, the confirmation email will include the full EagleView Estates pricing schedule, not only the selected operational scope.",
-        )
-        strategic_value = st.select_slider("2. Strategic Value of Location", options=VALUE_OPTIONS)
-        deployment_window = st.radio("3. Target Deployment Date", DEPLOYMENT_WINDOWS)
-        amenities = st.multiselect("4. Critical Site Amenities", AMENITIES)
-
-        name = st.text_input("Company / Representative Name", placeholder="Example: ABC Contracting Ltd.")
-        email = st.text_input("Direct Email", placeholder="name@company.com")
-
-        submitted = st.form_submit_button("Validate & Continue")
-
-    if submitted:
-        name_clean = name.strip()
-        email_clean = email.strip().lower()
-
-        if not name_clean:
-            st.warning("Please enter a company or representative name.")
-            return
-
-        if not is_valid_email(email_clean):
-            st.warning("Please enter a valid email address.")
-            return
-
-        st.session_state.user_data = {
-            "name": name_clean,
-            "email": email_clean,
-            "scope": scope,
-            "send_full_pricing": send_full_pricing,
-            "strategic_value": strategic_value,
-            "deployment_window": deployment_window,
-            "amenities": amenities,
-        }
-        st.session_state.page = "eoi"
-        st.rerun()
-
-
-def eoi_page() -> None:
-    data = st.session_state.get("user_data", {})
-    if not data:
-        reset_portal()
-        return
-
-    render_header()
-
-    name_safe = clean_text(data.get("name", ""))
-    scope_safe = clean_text(data.get("scope", ""))
-    deployment_safe = clean_text(data.get("deployment_window", ""))
-    amenities_safe = html.escape(", ".join(data.get("amenities", [])) or "To be confirmed")
-
-    st.markdown(
-        f"""
-        <div class='eoi-document'>
-            <h2 style='text-align:center; color:#d4af37; text-transform:uppercase;'>Statement of Interest</h2>
-            <p><span class='gold-text'>Prospective Tenant:</span> {name_safe}</p>
-            <hr style='border: 0.5px solid #d4af37;'>
-            <p><b>1. Scope:</b> Requirement identified for <span class='gold-text'>{scope_safe}</span>.</p>
-            <p><b>2. Target Window:</b> {deployment_safe}</p>
-            <p><b>3. Requested Amenities:</b> {amenities_safe}</p>
-            <p><b>4. Pricing:</b> Your confirmation email will include the selected scope pricing. If the full schedule option was selected, it will include the complete EagleView Estates pricing schedule.</p>
-            <p><b>5. Non-Binding Acknowledgement:</b> This Statement of Interest is not a lease, reservation, or binding commitment. Final terms remain subject to availability, formal lease documentation, site readiness, and mutual approval.</p>
-            <p style='font-size:0.9rem; color:#bbbbbb; margin-top:1.5rem;'><i>By signing below, you confirm interest in receiving formal leasing information based on current site availability.</i></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    signature = st.text_input("Digital Signature", placeholder="Full name and title")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Back"):
-            st.session_state.page = "assessment"
-            st.rerun()
-
-    with col2:
-        if st.button("Execute & Unlock Pricing"):
-            if not signature.strip():
-                st.warning("Please enter your full name and title as a digital signature.")
-                return
-
-            st.session_state.user_data["signature"] = signature.strip()
-            success = send_emails(st.session_state.user_data)
-            st.session_state.email_sent = success
-            st.session_state.page = "thankyou"
-            st.rerun()
-
-
-def thankyou_page() -> None:
-    render_header()
-
-    if st.session_state.get("email_sent"):
-        st.markdown("<div style='text-align:center; margin-top:2rem; font-size:4rem;'>✔️</div>", unsafe_allow_html=True)
-        status = "EOI Verified"
-        message = "Your pricing package has been sent to the email provided."
-    else:
-        st.markdown("<div style='text-align:center; margin-top:2rem; font-size:4rem;'>⚠️</div>", unsafe_allow_html=True)
-        status = "EOI Recorded"
-        message = "Your information was captured, but the email confirmation may not have been delivered."
-
-    st.markdown(
-        f"""
-        <div style='color:#d4af37; font-size:1.8rem; text-align:center; letter-spacing:0.22em; margin-bottom:1rem; text-transform:uppercase;'>
-            {status}
-        </div>
-        <div class='notice-card'>
-            <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:0.12em;'>Next Step</h4>
-            <p>{message}</p>
-            <p>If your pricing package does not arrive shortly, check your <b style='color:#d4af37;'>Junk/Spam folder</b>.</p>
-            <p>Mark the email as <b style='color:#d4af37;'>Not Junk</b> so future lease documents and site updates are delivered properly.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if st.button("Submit Another EOI"):
-        reset_portal()
-
-
-# -----------------------------
-# App router
-# -----------------------------
-
-
-def main() -> None:
-    initialize_state()
-    apply_global_styles()
-
-    page = st.session_state.get("page", "assessment")
-
-    if page == "assessment":
-        assessment_page()
-    elif page == "eoi":
-        eoi_page()
-    elif page == "thankyou":
-        thankyou_page()
-    else:
-        reset_portal()
-
-
-if __name__ == "__main__":
-    main()
+- Daily: {
