@@ -594,9 +594,6 @@ def thankyou_page() -> None:
         unsafe_allow_html=True,
     )
 
-    if result:
-        render_email_diagnostics(result)
-
     if st.button("Submit Another EOI"):
         reset_portal()
 
