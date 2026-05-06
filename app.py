@@ -280,18 +280,62 @@ def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
 
 def format_full_pricing_schedule() -> str:
     blocks = [format_single_pricing_block(scope, pricing) for scope, pricing in PRICING_DEALS.items()]
-    return "\n\n".join(blocks)
+    return "
+
+".join(blocks)
 
 
 def is_full_pricing_request(data: dict) -> bool:
-    return data.get("scope") == FULL_PRI
+    return data.get("scope") == FULL_PRICING_REQUEST_LABEL or bool(data.get("send_full_pricing"))
 
 
-def build_client_email(data: dict, pricing: PricingDeal) -> MIMEMultipart:
+def build_admin_email(data: dict) -> MIMEMultipart:
+    msg = MIMEMultipart()
+    msg["From"] = f"EagleView Portal <{SENDER_EMAIL}>"
+    msg["To"] = SENDER_EMAIL
+    msg["Subject"] = f"New EOI Submission: {data['name']}"
+
+    amenities = ", ".join(data.get("amenities", [])) or "None selected"
+    pricing_snapshot = format_full_pricing_schedule() if is_full_pricing_request(data) else format_single_pricing_block(data["scope"], PRICING_DEALS[data["scope"]])
+
+    body = f"""
+New Expression of Interest received.
+
+Company / Representative: {data['name']}
+Email: {data['email']}
+Operational Scope: {data['scope']}
+Strategic Value: {data['strategic_value']}
+Target Deployment: {data['deployment_window']}
+Amenities: {amenities}
+Full Pricing Schedule Requested: {'Yes' if is_full_pricing_request(data) else 'No'}
+Digital Signature: {data.get('signature', 'N/A')}
+
+Pricing Requested:
+{pricing_snapshot}
+
+Notes:
+This is an expression of interest only. No lease has been executed through the portal.
+""".strip()
+
+    msg.attach(MIMEText(body, "plain"))
+    return msg
+
+
+def build_client_email(data: dict) -> MIMEMultipart:
     msg = MIMEMultipart()
     msg["From"] = f"EagleView Estates <{SENDER_EMAIL}>"
     msg["To"] = data["email"]
-    msg["Subject"] = "EagleView Estates: Priority Pricing & Site Interest Confirmation"
+    msg["Bcc"] = SENDER_EMAIL
+    msg["Subject"] = "EagleView Estates: Complete Pricing Schedule & Site Interest Confirmation"
+
+    if is_full_pricing_request(data):
+        pricing_intro = "Complete current pricing schedule:"
+        pricing_block = format_full_pricing_schedule()
+        site_notes = "A full pricing schedule was requested. Final recommendations will depend on required yard size, access frequency, equipment type, lease term, and deployment timing."
+    else:
+        pricing_intro = f"Current pricing indication for {data['scope']}:"
+        pricing_block = format_single_pricing_block(data["scope"], PRICING_DEALS[data["scope"]])
+        site_notes = PRICING_DEALS[data["scope"]].details
 
     body = f"""
 Hello {data['name']},
@@ -301,15 +345,11 @@ Thank you for submitting your Statement of Interest for EagleView Estates.
 Selected site requirement:
 {data['scope']}
 
-Current pricing indication:
-- Daily: {pricing.daily}
-- Weekly: {pricing.weekly}
-- Monthly: {pricing.monthly}
-- Yearly: {pricing.yearly}
-- Multi-Year: {pricing.multi_year}
+{pricing_intro}
+{pricing_block}
 
 Site notes:
-{pricing.details}
+{site_notes}
 
 Important disclaimer:
 This submission confirms interest only. Pricing is indicative and subject to availability, final site configuration, operating requirements, lease terms, and market conditions. No lease, reservation, or binding commitment is created until a formal agreement is reviewed and executed by both parties.
@@ -324,10 +364,10 @@ The EagleView Estates Team
 
 def send_emails(data: dict) -> bool:
     """Send admin notification and client confirmation email."""
-    pricing = PRICING_DEALS.get(data.get("scope"))
+    scope = data.get("scope")
     password = get_email_password()
 
-    if not pricing:
+    if scope != FULL_PRICING_REQUEST_LABEL and scope not in PRICING_DEALS:
         st.error("Pricing package could not be found. Please restart the form and try again.")
         return False
 
@@ -336,8 +376,8 @@ def send_emails(data: dict) -> bool:
         return False
 
     try:
-        admin_msg = build_admin_email(data, pricing)
-        client_msg = build_client_email(data, pricing)
+        admin_msg = build_admin_email(data)
+        client_msg = build_client_email(data)
 
         context = ssl.create_default_context()
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
@@ -345,10 +385,12 @@ def send_emails(data: dict) -> bool:
             server.starttls(context=context)
             server.ehlo()
             server.login(SENDER_EMAIL, password)
-            server.send_message(admin_msg)
-            server.send_message(client_msg)
 
-        logger.info("EOI emails sent successfully for %s", data["email"])
+            # Send the client confirmation first. If this fails, do not show the user a false success message.
+            server.send_message(client_msg)
+            server.send_message(admin_msg)
+
+        logger.info("EOI confirmation and admin emails sent successfully for %s", data["email"])
         return True
 
     except smtplib.SMTPAuthenticationError:
@@ -376,7 +418,13 @@ def assessment_page() -> None:
     with st.form("assessment_form", clear_on_submit=False):
         st.markdown("### <span class='gold-text'>Strategic Site Assessment</span>", unsafe_allow_html=True)
 
-        scope = st.selectbox("1. Operational Scope", list(PRICING_DEALS.keys()))
+        scope_options = list(PRICING_DEALS.keys())
+        scope = st.selectbox("1. Operational Scope", scope_options)
+        send_full_pricing = st.checkbox(
+            "Send me the complete pricing schedule for all storage options",
+            value=True,
+            help="When selected, the confirmation email will include the full EagleView Estates pricing schedule, not only the selected operational scope.",
+        )
         strategic_value = st.select_slider("2. Strategic Value of Location", options=VALUE_OPTIONS)
         deployment_window = st.radio("3. Target Deployment Date", DEPLOYMENT_WINDOWS)
         amenities = st.multiselect("4. Critical Site Amenities", AMENITIES)
@@ -402,6 +450,7 @@ def assessment_page() -> None:
             "name": name_clean,
             "email": email_clean,
             "scope": scope,
+            "send_full_pricing": send_full_pricing,
             "strategic_value": strategic_value,
             "deployment_window": deployment_window,
             "amenities": amenities,
@@ -432,7 +481,7 @@ def eoi_page() -> None:
             <p><b>1. Scope:</b> Requirement identified for <span class='gold-text'>{scope_safe}</span>.</p>
             <p><b>2. Target Window:</b> {deployment_safe}</p>
             <p><b>3. Requested Amenities:</b> {amenities_safe}</p>
-            <p><b>4. Pricing:</b> Indicative pricing will be emailed after submission.</p>
+            <p><b>4. Pricing:</b> Your confirmation email will include the selected scope pricing. If the full schedule option was selected, it will include the complete EagleView Estates pricing schedule.</p>
             <p><b>5. Non-Binding Acknowledgement:</b> This Statement of Interest is not a lease, reservation, or binding commitment. Final terms remain subject to availability, formal lease documentation, site readiness, and mutual approval.</p>
             <p style='font-size:0.9rem; color:#bbbbbb; margin-top:1.5rem;'><i>By signing below, you confirm interest in receiving formal leasing information based on current site availability.</i></p>
         </div>
