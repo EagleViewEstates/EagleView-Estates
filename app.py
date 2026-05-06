@@ -1,3 +1,5 @@
+import streamlit as st
+import os
 import smtplib
 import base64
 from email.mime.text import MIMEText
