@@ -132,3 +132,14 @@ if submit_button:
             # EAGLE ANIMATION INSTEAD OF BALLOONS
             st.markdown("""
                 <div class='eagle-container'>
+                    <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHp1eHN3YmIwaXg3dzVqZ3B5dG5wZnd1Z3ZxeHpxeHpxeHpxeHpxJmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/vYguV8X7Y0Ryk/giphy.gif" width="300">
+                </div>
+            """, unsafe_allow_html=True)
+            st.success("Thank you very much for your time. Your assessment has been prioritized. We look forward to partnering in the future.")
+            time.sleep(2) # Brief pause to appreciate the eagle
+        else:
+            st.error("Submission error. Please email info@eagleviewearthworks.com directly.")
+    else:
+        st.warning("Please provide contact information.")
+
+st.markdown("<br><p style='text-align: center; color: #444; font-size: 0.8em; letter-spacing: 3px;'>EAGLEVIEW ESTATES | WINNIPEG, MB</p>", unsafe_allow_html=True)
