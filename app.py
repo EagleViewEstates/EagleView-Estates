@@ -5,23 +5,29 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
 
+# ============================================================
+# APP CONFIG
+# ============================================================
+
 APP_TITLE = "EagleView Estates | Private Yard Allocation Portal"
 APP_ICON = "🦅"
 BRAND_NAME = "EagleView Estates"
 LOCATION_LINE = "Private Yard Allocation Portal • CentrePort Canada • Winnipeg"
+
 BACKGROUND_IMAGE = Path("site_photo.jpg")
 LAYOUT_DIRECTORY = Path("layouts")
 
 DEFAULT_SENDER_EMAIL = "info@eagleviewearthworks.com"
 DEFAULT_ADMIN_EMAIL = "info@eagleviewearthworks.com"
+
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 
@@ -30,6 +36,11 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
+
+# ============================================================
+# DATA MODELS
+# ============================================================
 
 @dataclass(frozen=True)
 class PricingDeal:
@@ -52,6 +63,10 @@ class EmailSendResult:
     admin_email: str = ""
     client_email: str = ""
 
+
+# ============================================================
+# PRICING / OPTIONS
+# ============================================================
 
 PRICING_DEALS: Dict[str, PricingDeal] = {
     "💎 Anchor Tenant: 5-Acre Parcel": PricingDeal(
@@ -131,6 +146,19 @@ CLIENT_TYPES = [
     "Other Commercial User",
 ]
 
+VALUE_OPTIONS = ["Low", "Neutral", "Important", "Strategic", "Critical"]
+
+DEPLOYMENT_WINDOWS = [
+    "June 1 - Immediate Requirement",
+    "Summer 2026",
+    "Fall/Winter 2026",
+    "Flexible / Planning Ahead",
+]
+
+# ============================================================
+# SPECIFIC LAYOUT DRAWINGS
+# ============================================================
+
 LAYOUT_FILES = {
     "Under 1,000 sq ft": LAYOUT_DIRECTORY / "layout_under_1000.pdf",
     "1,000 - 5,000 sq ft": LAYOUT_DIRECTORY / "layout_1000_5000.pdf",
@@ -140,15 +168,9 @@ LAYOUT_FILES = {
     "Full Site / Anchor Requirement": LAYOUT_DIRECTORY / "layout_anchor_site.pdf",
 }
 
-DEPLOYMENT_WINDOWS = [
-    "June 1 - Immediate Requirement",
-    "Summer 2026",
-    "Fall/Winter 2026",
-    "Flexible / Planning Ahead",
-]
-
-VALUE_OPTIONS = ["Low", "Neutral", "Important", "Strategic", "Critical"]
-
+# ============================================================
+# HELPERS
+# ============================================================
 
 def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
     try:
@@ -165,9 +187,6 @@ def get_email_config() -> Tuple[str, str, str, Optional[str]]:
     return sender_email, admin_email, smtp_username, password
 
 
-st.set_page_config(page_title=APP_TITLE, layout="centered", page_icon=APP_ICON)
-
-
 def encode_file_base64(path: Path) -> Optional[str]:
     try:
         if not path.exists():
@@ -178,13 +197,39 @@ def encode_file_base64(path: Path) -> Optional[str]:
         return None
 
 
+def is_valid_email(email: str) -> bool:
+    return bool(EMAIL_PATTERN.match(email.strip()))
+
+
+def clean_text(value: str) -> str:
+    return html.escape(value.strip())
+
+
+def initialize_state() -> None:
+    st.session_state.setdefault("page", "assessment")
+    st.session_state.setdefault("user_data", {})
+    st.session_state.setdefault("email_result", None)
+
+
+def reset_portal() -> None:
+    st.session_state.page = "assessment"
+    st.session_state.user_data = {}
+    st.session_state.email_result = None
+    st.rerun()
+
+
+# ============================================================
+# STYLING
+# ============================================================
+
 def apply_global_styles() -> None:
     bg_image = encode_file_base64(BACKGROUND_IMAGE)
 
     if bg_image:
         background_css = f"""
         .stApp {{
-            background-image: linear-gradient(rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.82)), url("data:image/jpg;base64,{bg_image}");
+            background-image: linear-gradient(rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.82)),
+                              url("data:image/jpg;base64,{bg_image}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -214,13 +259,16 @@ def apply_global_styles() -> None:
         .sub-brand {{
             text-align: center;
             color: #d4af37;
-            letter-spacing: 0.28em;
+            letter-spacing: 0.18em;
             font-size: 0.82rem;
             text-transform: uppercase;
             margin-bottom: 2rem;
         }}
 
-        .gold-text {{ color: #d4af37; font-weight: 700; }}
+        .gold-text {{
+            color: #d4af37;
+            font-weight: 700;
+        }}
 
         [data-testid="stForm"] {{
             background-color: rgba(0, 0, 0, 0.78) !important;
@@ -280,7 +328,7 @@ def apply_global_styles() -> None:
             box-shadow: 0 0 20px rgba(212, 175, 55, 0.8);
         }}
 
-        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox {{
+        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox, .stTextArea {{
             color: #ffffff !important;
         }}
         </style>
@@ -294,26 +342,9 @@ def render_header() -> None:
     st.markdown(f"<div class='sub-brand'>{LOCATION_LINE}</div>", unsafe_allow_html=True)
 
 
-def is_valid_email(email: str) -> bool:
-    return bool(EMAIL_PATTERN.match(email.strip()))
-
-
-def clean_text(value: str) -> str:
-    return html.escape(value.strip())
-
-
-def initialize_state() -> None:
-    st.session_state.setdefault("page", "assessment")
-    st.session_state.setdefault("user_data", {})
-    st.session_state.setdefault("email_result", None)
-
-
-def reset_portal() -> None:
-    st.session_state.page = "assessment"
-    st.session_state.user_data = {}
-    st.session_state.email_result = None
-    st.rerun()
-
+# ============================================================
+# BUSINESS LOGIC
+# ============================================================
 
 def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
     return f"""
@@ -346,7 +377,6 @@ def requested_pricing_block(data: dict) -> str:
 
 
 def calculate_lead_score(data: dict) -> Tuple[str, int, str, str]:
-    """Return lead tier, numeric score, follow-up urgency, and pricing strategy."""
     score = 0
 
     scope = data.get("scope", "")
@@ -405,16 +435,40 @@ def calculate_lead_score(data: dict) -> Tuple[str, int, str, str]:
     if "Power Availability" in amenities:
         score += 4
 
-    if client_type in {"Government / Institutional", "Energy / Industrial Services", "Utility / Infrastructure Contractor"}:
+    if client_type in {
+        "Government / Institutional",
+        "Energy / Industrial Services",
+        "Utility / Infrastructure Contractor",
+    }:
         score += 8
 
     if score >= 95:
-        return "Tier A+ / Anchor Prospect", score, "Same-day executive follow-up recommended", "Do not rely on standard schedule only. Offer custom allocation review and term pricing."
+        return (
+            "Tier A+ / Anchor Prospect",
+            score,
+            "Same-day executive follow-up recommended",
+            "Do not rely on standard schedule only. Offer custom allocation review and term pricing.",
+        )
     if score >= 75:
-        return "Tier A / High-Value Commercial Prospect", score, "Follow up within 24 hours", "Quote preliminary framework, then move toward custom lease structure."
+        return (
+            "Tier A / High-Value Commercial Prospect",
+            score,
+            "Follow up within 24 hours",
+            "Quote preliminary framework, then move toward custom lease structure.",
+        )
     if score >= 50:
-        return "Tier B / Qualified Commercial Prospect", score, "Follow up within 48 hours", "Use standard schedule with opportunity to adjust for size and term."
-    return "Tier C / General Inquiry", score, "Follow up as capacity allows", "Use standard pricing schedule and qualify further before reserving space."
+        return (
+            "Tier B / Qualified Commercial Prospect",
+            score,
+            "Follow up within 48 hours",
+            "Use standard schedule with opportunity to adjust for size and term.",
+        )
+    return (
+        "Tier C / General Inquiry",
+        score,
+        "Follow up as capacity allows",
+        "Use standard pricing schedule and qualify further before reserving space.",
+    )
 
 
 def estimate_monthly_value(data: dict) -> str:
@@ -434,16 +488,57 @@ def estimate_monthly_value(data: dict) -> str:
     return "To be confirmed after site allocation review"
 
 
+# ============================================================
+# LAYOUT ATTACHMENT HELPERS
+# ============================================================
+
+def get_layout_file(data: dict) -> Optional[Path]:
+    return LAYOUT_FILES.get(data.get("space_requirement", ""))
+
+
+def make_safe_attachment_name(data: dict) -> str:
+    space = data.get("space_requirement", "allocation").lower()
+    safe_space = re.sub(r"[^a-z0-9]+", "_", space).strip("_")
+    return f"EagleView_Preliminary_Yard_Allocation_Exhibit_{safe_space}.pdf"
+
+
+def attach_layout_exhibit(message: MIMEMultipart, data: dict) -> Tuple[bool, str]:
+    layout_file = get_layout_file(data)
+
+    if not layout_file:
+        return False, "No layout template mapped for selected space requirement."
+
+    if not layout_file.exists():
+        return False, f"Layout file missing: {layout_file}"
+
+    try:
+        with layout_file.open("rb") as file:
+            part = MIMEApplication(file.read(), Name=make_safe_attachment_name(data))
+
+        part["Content-Disposition"] = f'attachment; filename="{make_safe_attachment_name(data)}"'
+        message.attach(part)
+        return True, f"Attached: {layout_file}"
+    except Exception as exc:
+        logger.exception("Failed to attach layout exhibit")
+        return False, f"Attachment error: {type(exc).__name__}: {exc}"
+
+
+# ============================================================
+# EMAIL BUILDERS
+# ============================================================
+
 def build_admin_email(data: dict, sender_email: str, admin_email: str) -> MIMEMultipart:
+    lead_tier, lead_score, follow_up, pricing_strategy = calculate_lead_score(data)
+
     msg = MIMEMultipart()
     msg["From"] = f"EagleView Portal <{sender_email}>"
     msg["To"] = admin_email
-    msg["Subject"] = f"New EOI Submission: {data['name']}"
+    msg["Subject"] = f"New Allocation Request: {data['name']}"
 
     amenities = ", ".join(data.get("amenities", [])) or "None selected"
 
     body = f"""
-New Expression of Interest received.
+New private yard allocation request received.
 
 Company / Representative: {data['name']}
 Email: {data['email']}
@@ -458,18 +553,22 @@ Amenities: {amenities}
 Project / Use Notes: {data.get('project_notes', 'N/A')}
 Digital Signature: {data.get('signature', 'N/A')}
 
+Preliminary Layout Exhibit:
+Requested Exhibit File: {get_layout_file(data) or 'No mapped layout file'}
+Attachment Expected: {'Yes' if get_layout_file(data) else 'No'}
+
 Internal Lead Review:
-Lead Tier: {calculate_lead_score(data)[0]}
-Lead Score: {calculate_lead_score(data)[1]}/125
-Follow-Up Urgency: {calculate_lead_score(data)[2]}
-Recommended Pricing Strategy: {calculate_lead_score(data)[3]}
+Lead Tier: {lead_tier}
+Lead Score: {lead_score}/125
+Follow-Up Urgency: {follow_up}
+Recommended Pricing Strategy: {pricing_strategy}
 Estimated Monthly Value: {estimate_monthly_value(data)}
 
 Pricing Sent To Prospect:
 {requested_pricing_block(data)}
 
 Notes:
-This is an expression of interest only. No lease has been executed through the portal.
+This is a non-binding allocation request only. No lease has been executed through the portal.
 """.strip()
 
     msg.attach(MIMEText(body, "plain"))
@@ -503,6 +602,9 @@ Our team has received the following preliminary requirement:
 {pricing_intro}
 {requested_pricing_block(data)}
 
+Attached Exhibit:
+A preliminary yard allocation exhibit has been included when a matching size-band layout is available. This visual is conceptual only and is intended to illustrate a possible allocation format for the requested space range.
+
 Commercial Notes:
 The above is a preliminary leasing framework only. Larger allocations, exclusive-use areas, infrastructure users, project-based staging requirements, and multi-year commitments may be reviewed under a custom site allocation and term-pricing structure.
 
@@ -517,8 +619,17 @@ The EagleView Estates Team
 """.strip()
 
     msg.attach(MIMEText(body, "plain"))
+
+    attached, attachment_status = attach_layout_exhibit(msg, data)
+    msg["X-EagleView-Layout-Exhibit"] = "attached" if attached else "not-attached"
+    msg["X-EagleView-Layout-Status"] = attachment_status[:900]
+
     return msg
 
+
+# ============================================================
+# EMAIL SENDING
+# ============================================================
 
 def send_one_message(
     server: smtplib.SMTP,
@@ -575,6 +686,7 @@ def send_emails_with_diagnostics(data: dict) -> EmailSendResult:
             server.ehlo()
             server.login(smtp_username, password)
 
+            # Send client email first, with verification copy to admin
             client_recipients = [data["email"], admin_email]
             result.client_sent, result.client_error = send_one_message(
                 server=server,
@@ -583,6 +695,7 @@ def send_emails_with_diagnostics(data: dict) -> EmailSendResult:
                 to_addrs=client_recipients,
             )
 
+            # Send separate admin notice
             result.admin_sent, result.admin_error = send_one_message(
                 server=server,
                 message=admin_msg,
@@ -614,7 +727,7 @@ def render_email_diagnostics(result: EmailSendResult) -> None:
             Client Email: {html.escape(result.client_email)}<br>
             Admin / Verification Copy: {html.escape(result.admin_email)}<br>
             Client Confirmation Accepted by SMTP: {'YES' if result.client_sent else 'NO'}<br>
-            Admin EOI Accepted by SMTP: {'YES' if result.admin_sent else 'NO'}<br>
+            Admin Allocation Notice Accepted by SMTP: {'YES' if result.admin_sent else 'NO'}<br>
             Client Error: {html.escape(result.client_error or 'None')}<br>
             Admin Error: {html.escape(result.admin_error or 'None')}
         </div>
@@ -622,6 +735,10 @@ def render_email_diagnostics(result: EmailSendResult) -> None:
         unsafe_allow_html=True,
     )
 
+
+# ============================================================
+# PAGES
+# ============================================================
 
 def assessment_page() -> None:
     render_header()
@@ -746,7 +863,6 @@ def eoi_page() -> None:
 
 def thankyou_page() -> None:
     render_header()
-    result: Optional[EmailSendResult] = st.session_state.get("email_result")
 
     st.markdown("<div style='text-align:center; margin-top:2rem; font-size:4rem;'>✔️</div>", unsafe_allow_html=True)
     st.markdown(
@@ -767,6 +883,10 @@ def thankyou_page() -> None:
     if st.button("Submit Another Allocation Request"):
         reset_portal()
 
+
+# ============================================================
+# APP ROUTER
+# ============================================================
 
 def main() -> None:
     initialize_state()
