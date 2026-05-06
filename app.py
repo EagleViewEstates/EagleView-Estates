@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import smtplib
 import time
 from email.mime.text import MIMEText
@@ -28,12 +29,12 @@ def send_email(data):
     except:
         return False
 
-# --- CSS: THE BILLION DOLLAR LOOK ---
+# --- CSS: THE INSTITUTIONAL LOOK ---
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #ffffff; }
     
-    /* Gold Typography Branding */
+    /* Branding Header */
     .brand-gold {
         text-align: center; 
         font-family: 'serif';
@@ -56,16 +57,24 @@ st.markdown("""
         margin-bottom: 40px;
     }
 
+    /* Site Image Styling */
+    .stImage > img {
+        border: 1px solid #d4af37;
+        border-radius: 4px;
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+    }
+
     /* Anchor Card */
     .anchor-card {
         padding: 40px; 
         background-color: #0a0a0a;
         border: 1px solid #d4af37;
         text-align: center;
+        margin-top: 25px;
         margin-bottom: 30px;
     }
 
-    /* Success Screen Overlay */
+    /* Full Screen Success Overlay */
     .success-screen {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
@@ -73,13 +82,17 @@ st.markdown("""
         display: flex; flex-direction: column;
         justify-content: center; align-items: center;
         z-index: 9999;
+        text-align: center;
     }
 
+    /* Premium Gold Button */
     .stButton>button { 
         background-color: #d4af37 !important; color: #000 !important;
         font-weight: bold; border-radius: 0; height: 3.5em; border: none;
-        letter-spacing: 2px;
+        letter-spacing: 2px; text-transform: uppercase;
+        width: 100%;
     }
+    .stButton>button:hover { background-color: #ffffff !important; box-shadow: 0 0 15px #d4af37; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -87,14 +100,19 @@ st.markdown("""
 st.markdown("<div class='brand-gold'>EagleView Estates</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-brand'>CentrePort Canada • Winnipeg</div>", unsafe_allow_html=True)
 
+# --- MAIN SITE IMAGE (KEPT IN CODE) ---
+if os.path.exists("site_photo.jpg"):
+    st.image("site_photo.jpg", caption="Strategic Industrial Development Area", use_column_width=True)
+
 st.markdown("""
 <div class='anchor-card'>
-    <h2 style='color:#d4af37; font-weight:300; letter-spacing:2px;'>STRATEGIC SITE ASSESSMENT</h2>
-    <p style='color:#888;'>Evaluating a premier 1.5 - 5.0 acre industrial parcel. <br> 
+    <h2 style='color:#d4af37; font-weight:300; letter-spacing:2px; margin:0;'>STRATEGIC SITE ASSESSMENT</h2>
+    <p style='color:#888; margin-top:15px;'>Evaluating a premier 1.5 - 5.0 acre industrial parcel. <br> 
     Final engineering is tailored to major fleet requirements.</p>
 </div>
 """, unsafe_allow_html=True)
 
+# --- FORM ---
 with st.form("main_survey", clear_on_submit=True):
     q1 = st.selectbox("1. Operational Need", ["💎 ANCHOR TENANT: 5-Acre Parcel", "Dedicated Pad (1-5k sqft)", "Hourly Flex Staging", "Seasonal Overload"])
     q2 = st.select_slider("2. Strategic Value of CentrePort Location", options=["Low", "Neutral", "Important", "Strategic", "Critical"])
@@ -108,22 +126,23 @@ with st.form("main_survey", clear_on_submit=True):
     
     submit = st.form_submit_button("SUBMIT PRIORITY ASSESSMENT")
 
+# --- THANK YOU LOGIC ---
 if submit:
     if name and contact:
         results = {"name": name, "contact": contact, "q1": q1, "q2": q2, "q3": q3, "q4": q4, "q5": q5}
         send_email(results)
         
-        # --- THE FIXED THANK YOU PAGE ---
+        # This replaces the page with the institutional Gold/Black thank you
         st.markdown(f"""
             <div class="success-screen">
                 <div class="brand-gold">EagleView Estates</div>
-                <div style="color:#d4af37; font-size: 1.5em; letter-spacing: 5px; margin-top:20px;">ASSESSMENT VERIFIED</div>
-                <div style="color:#888; text-align:center; max-width:600px; margin-top:30px; line-height:1.6; padding: 0 20px;">
+                <div style="color:#d4af37; font-size: 1.5em; letter-spacing: 5px; margin-top:20px; text-transform: uppercase;">Assessment Verified</div>
+                <div style="color:#888; text-align:center; max-width:600px; margin-top:30px; line-height:1.6; padding: 0 20px; font-family: sans-serif;">
                     Thank you very much for your time. Your data has been integrated into the CentrePort site plan. 
                     We have prioritized your inquiry and look forward to partnering in the future.
                 </div>
+                <div style="margin-top: 50px; color: #444; font-size: 0.7em; letter-spacing: 2px;">WINNIPEG, MB</div>
             </div>
         """, unsafe_allow_html=True)
-        st.balloons() # Added as a backup visual cue
     else:
         st.error("Please provide contact information.")
