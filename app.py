@@ -27,10 +27,9 @@ BRAND_NAME = "EagleView Estates"
 LOCATION_LINE = "Private Yard Allocation Portal • CentrePort Canada • Winnipeg"
 
 BACKGROUND_IMAGE = Path("site_photo.jpg")
-SITE_LAYOUT_OVERVIEW = Path("site_layout.jpg")
+SITE_LAYOUT_OVERVIEW = Path("site_layout.pdf")
 LAYOUT_DIRECTORY = Path("layouts")
 DATA_DIRECTORY = Path("data")
-GENERATED_DIRECTORY = Path("generated")
 LEAD_CSV_FILE = DATA_DIRECTORY / "eagleview_leads.csv"
 
 DEFAULT_SENDER_EMAIL = "info@eagleviewearthworks.com"
@@ -73,8 +72,6 @@ class AttachmentStatus:
     overview_status: str = ""
     size_layout_attached: bool = False
     size_layout_status: str = ""
-    framework_attached: bool = False
-    framework_status: str = ""
 
 
 PRICING_DEALS: Dict[str, PricingDeal] = {
@@ -193,7 +190,7 @@ def get_booking_link() -> str:
 
 
 def ensure_directories() -> None:
-    for directory in [DATA_DIRECTORY, GENERATED_DIRECTORY, LAYOUT_DIRECTORY]:
+    for directory in [DATA_DIRECTORY, LAYOUT_DIRECTORY]:
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
@@ -418,60 +415,26 @@ def attach_file(message: MIMEMultipart, file_path: Optional[Path], display_name:
         return False, f"Attachment error for {file_path}: {type(exc).__name__}: {exc}"
 
 
-def build_framework_html(data: dict) -> str:
-    tier, score, _, _ = calculate_lead_score(data)
-    booking_link = get_booking_link()
-    booking_section = f'<p><b>Schedule Private Site Allocation Review:</b> <a href="{html.escape(booking_link)}">{html.escape(booking_link)}</a></p>' if booking_link else ""
-    return f"""<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>EagleView Preliminary Leasing Framework</title></head>
-<body style="font-family:Arial, sans-serif; color:#111; line-height:1.45;">
-<h1 style="color:#9a7611; letter-spacing:2px;">EAGLEVIEW ESTATES</h1>
-<h2>Preliminary Yard Leasing Framework</h2>
-<p><b>Client:</b> {safe_html_text(data.get('name'))}</p>
-<p><b>Client Type:</b> {safe_html_text(data.get('client_type'))}</p>
-<p><b>Operational Scope:</b> {safe_html_text(data.get('scope'))}</p>
-<p><b>Approximate Space Requirement:</b> {safe_html_text(data.get('space_requirement'))}</p>
-<p><b>Preferred Lease Structure:</b> {safe_html_text(data.get('lease_term'))}</p>
-<p><b>Target Deployment Window:</b> {safe_html_text(data.get('deployment_window'))}</p>
-<p><b>Estimated Monthly Value:</b> {safe_html_text(estimate_monthly_value(data))}</p>
-<h3>Preliminary Pricing Framework</h3>
-<pre style="white-space:pre-wrap; background:#f7f4ea; border:1px solid #c9b46a; padding:12px;">{safe_html_text(requested_pricing_block(data))}</pre>
-<h3>Commercial Notes</h3>
-<p>Larger allocations, exclusive-use areas, infrastructure users, project-based staging requirements, and multi-year commitments may be reviewed under a custom site allocation and term-pricing structure.</p>
-<h3>Internal Classification</h3>
-<p>{safe_html_text(tier)} | Score {score}/125</p>
-<h3>Important Non-Binding Disclaimer</h3>
-<p>This preliminary framework is for discussion purposes only. Pricing is indicative and subject to availability, final yard configuration, access requirements, operating intensity, lease term, insurance requirements, municipal approvals where applicable, and final documentation. No lease, reservation, exclusivity, or binding commitment is created until a formal agreement is executed by both parties.</p>
-{booking_section}
-</body></html>"""
-
-
-def create_framework_html_file(data: dict) -> Tuple[Optional[Path], str]:
-    try:
-        ensure_directories()
-        path = GENERATED_DIRECTORY / f"EagleView_Preliminary_Leasing_Framework_{safe_filename(data.get('name'))}.html"
-        path.write_text(build_framework_html(data), encoding="utf-8")
-        return path, f"Generated HTML framework: {path}"
-    except Exception as exc:
-        logger.exception("Framework generation failed")
-        return None, f"Framework generation failed: {type(exc).__name__}: {exc}"
-
-
 def attach_all_client_files(message: MIMEMultipart, data: dict) -> AttachmentStatus:
-    framework_path, framework_status = create_framework_html_file(data)
-    framework_ok, framework_attach_status = attach_file(message, framework_path, "EagleView_Preliminary_Leasing_Framework.html", "octet-stream") if framework_path else (False, framework_status)
-    overview_ok, overview_status = attach_file(message, SITE_LAYOUT_OVERVIEW, "EagleView_Site_Layout_Overview.jpg", "octet-stream")
-    size_ok, size_status = attach_file(message, get_layout_file(data), f"EagleView_Yard_Allocation_{safe_filename(data.get('space_requirement'))}.pdf", "pdf")
-    return AttachmentStatus(overview_ok, overview_status, size_ok, size_status, framework_ok, framework_attach_status)
+    overview_ok, overview_status = attach_file(
+        message,
+        SITE_LAYOUT_OVERVIEW,
+        "EagleView_Site_Layout_Overview.pdf",
+        "pdf",
+    )
+    size_ok, size_status = attach_file(
+        message,
+        get_layout_file(data),
+        f"EagleView_Yard_Allocation_{safe_filename(data.get('space_requirement'))}.pdf",
+        "pdf",
+    )
+    return AttachmentStatus(overview_ok, overview_status, size_ok, size_status)
 
 
 def format_attachment_report(status: Optional[AttachmentStatus]) -> str:
     if status is None:
         return "Attachment status unavailable."
-    return f"""Leasing Framework HTML: {'Attached' if status.framework_attached else 'NOT ATTACHED'}
-Leasing Framework Status: {status.framework_status}
-Universal Site Layout Overview: {'Attached' if status.overview_attached else 'NOT ATTACHED'}
+    return f"""Universal Site Layout Overview PDF: {'Attached' if status.overview_attached else 'NOT ATTACHED'}
 Overview Status: {status.overview_status}
 Size-Specific Layout: {'Attached' if status.size_layout_attached else 'NOT ATTACHED'}
 Size-Specific Status: {status.size_layout_status}"""
@@ -506,7 +469,6 @@ def save_lead(data: dict, result: Optional[EmailSendResult], status: Optional[At
             "admin_email_sent": result.admin_sent if result else "",
             "client_error": result.client_error if result else "",
             "admin_error": result.admin_error if result else "",
-            "framework_attached": status.framework_attached if status else "",
             "overview_attached": status.overview_attached if status else "",
             "size_layout_attached": status.size_layout_attached if status else "",
         }
@@ -551,8 +513,7 @@ Preliminary requirement:
 {requested_pricing_block(data)}
 
 Attached Package:
-- Preliminary Yard Leasing Framework HTML
-- EagleView Site Layout Overview
+- EagleView Site Layout Overview PDF
 - Size-specific yard allocation exhibit, when available
 
 Important Disclaimer:
@@ -565,7 +526,7 @@ Best regards,
 The EagleView Estates Team"""
     message.attach(MIMEText(body, "plain"))
     attachment_status = attach_all_client_files(message, data)
-    message["X-EagleView-Attachments"] = f"framework={attachment_status.framework_attached}; overview={attachment_status.overview_attached}; size={attachment_status.size_layout_attached}"
+    message["X-EagleView-Attachments"] = f"overview={attachment_status.overview_attached}; size={attachment_status.size_layout_attached}"
     return message, attachment_status
 
 
