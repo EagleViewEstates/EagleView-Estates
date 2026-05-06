@@ -274,4 +274,348 @@ def reset_portal() -> None:
 def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
     return f"""
 {scope}
-- Daily: {
+- Daily: {pricing.daily}
+- Weekly: {pricing.weekly}
+- Monthly: {pricing.monthly}
+- Yearly: {pricing.yearly}
+- Multi-Year: {pricing.multi_year}
+- Details: {pricing.details}
+""".strip()
+
+
+def format_full_pricing_schedule() -> str:
+    return "\n\n".join(
+        format_single_pricing_block(scope, pricing)
+        for scope, pricing in PRICING_DEALS.items()
+    )
+
+
+def requested_pricing_block(data: dict) -> str:
+    if data.get("send_full_pricing", True):
+        return format_full_pricing_schedule()
+
+    scope = data.get("scope")
+    if scope in PRICING_DEALS:
+        return format_single_pricing_block(scope, PRICING_DEALS[scope])
+
+    return format_full_pricing_schedule()
+
+
+def build_admin_email(data: dict, sender_email: str, admin_email: str) -> MIMEMultipart:
+    msg = MIMEMultipart()
+    msg["From"] = f"EagleView Portal <{sender_email}>"
+    msg["To"] = admin_email
+    msg["Subject"] = f"New EOI Submission: {data['name']}"
+
+    amenities = ", ".join(data.get("amenities", [])) or "None selected"
+
+    body = f"""
+New Expression of Interest received.
+
+Company / Representative: {data['name']}
+Email: {data['email']}
+Operational Scope: {data['scope']}
+Full Pricing Schedule Requested: {'Yes' if data.get('send_full_pricing', True) else 'No'}
+Strategic Value: {data['strategic_value']}
+Target Deployment: {data['deployment_window']}
+Amenities: {amenities}
+Digital Signature: {data.get('signature', 'N/A')}
+
+Pricing Sent To Prospect:
+{requested_pricing_block(data)}
+
+Notes:
+This is an expression of interest only. No lease has been executed through the portal.
+""".strip()
+
+    msg.attach(MIMEText(body, "plain"))
+    return msg
+
+
+def build_client_email(data: dict, sender_email: str) -> MIMEMultipart:
+    msg = MIMEMultipart()
+    msg["From"] = f"EagleView Estates <{sender_email}>"
+    msg["To"] = data["email"]
+    msg["Subject"] = "EagleView Estates: Complete Pricing Schedule & Site Interest Confirmation"
+
+    pricing_intro = (
+        "Complete current pricing schedule:"
+        if data.get("send_full_pricing", True)
+        else f"Current pricing indication for {data['scope']}:"
+    )
+
+    body = f"""
+Hello {data['name']},
+
+Thank you for submitting your Statement of Interest for EagleView Estates.
+
+Selected site requirement:
+{data['scope']}
+
+{pricing_intro}
+{requested_pricing_block(data)}
+
+Important disclaimer:
+This submission confirms interest only. Pricing is indicative and subject to availability, final site configuration, operating requirements, lease terms, and market conditions. No lease, reservation, or binding commitment is created until a formal agreement is reviewed and executed by both parties.
+
+Best regards,
+The EagleView Estates Team
+""".strip()
+
+    msg.attach(MIMEText(body, "plain"))
+    return msg
+
+
+def send_one_message(
+    server: smtplib.SMTP,
+    message: MIMEMultipart,
+    from_addr: str,
+    to_addrs: List[str],
+) -> Tuple[bool, str]:
+    try:
+        refused = server.sendmail(from_addr, to_addrs, message.as_string())
+        if refused:
+            return False, f"Recipient refused by SMTP server: {refused}"
+        return True, ""
+    except Exception as exc:
+        logger.exception("Email send failed")
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def send_emails_with_diagnostics(data: dict) -> EmailSendResult:
+    sender_email, admin_email, smtp_username, password = get_email_config()
+
+    result = EmailSendResult(
+        smtp_username=smtp_username or "",
+        sender_email=sender_email or "",
+        admin_email=admin_email or "",
+        client_email=data.get("email", ""),
+    )
+
+    if not password:
+        msg = "Missing EMAIL_PASSWORD in Streamlit secrets."
+        result.client_error = msg
+        result.admin_error = msg
+        return result
+
+    if not sender_email or not admin_email or not smtp_username:
+        msg = "Missing SENDER_EMAIL, ADMIN_EMAIL, or SMTP_USERNAME."
+        result.client_error = msg
+        result.admin_error = msg
+        return result
+
+    if data.get("scope") not in PRICING_DEALS:
+        msg = "Selected operational scope does not exist in PRICING_DEALS."
+        result.client_error = msg
+        result.admin_error = msg
+        return result
+
+    client_msg = build_client_email(data, sender_email)
+    admin_msg = build_admin_email(data, sender_email, admin_email)
+
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=25) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.ehlo()
+            server.login(smtp_username, password)
+
+            client_recipients = [data["email"], admin_email]
+            result.client_sent, result.client_error = send_one_message(
+                server=server,
+                message=client_msg,
+                from_addr=sender_email,
+                to_addrs=client_recipients,
+            )
+
+            result.admin_sent, result.admin_error = send_one_message(
+                server=server,
+                message=admin_msg,
+                from_addr=sender_email,
+                to_addrs=[admin_email],
+            )
+
+    except smtplib.SMTPAuthenticationError as exc:
+        error = f"SMTPAuthenticationError: {exc}. Check Gmail app password / SMTP_USERNAME."
+        result.client_error = error
+        result.admin_error = error
+        logger.exception("SMTP authentication failed")
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        result.client_error = error
+        result.admin_error = error
+        logger.exception("SMTP connection/login failed")
+
+    return result
+
+
+def render_email_diagnostics(result: EmailSendResult) -> None:
+    st.markdown(
+        f"""
+        <div class='diagnostic-card'>
+            <b>Email Diagnostic</b><br>
+            SMTP Username: {html.escape(result.smtp_username)}<br>
+            Sender Email: {html.escape(result.sender_email)}<br>
+            Client Email: {html.escape(result.client_email)}<br>
+            Admin / Verification Copy: {html.escape(result.admin_email)}<br>
+            Client Confirmation Accepted by SMTP: {'YES' if result.client_sent else 'NO'}<br>
+            Admin EOI Accepted by SMTP: {'YES' if result.admin_sent else 'NO'}<br>
+            Client Error: {html.escape(result.client_error or 'None')}<br>
+            Admin Error: {html.escape(result.admin_error or 'None')}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def assessment_page() -> None:
+    render_header()
+
+    with st.form("assessment_form", clear_on_submit=False):
+        st.markdown("### <span class='gold-text'>Strategic Site Assessment</span>", unsafe_allow_html=True)
+
+        scope = st.selectbox("1. Operational Scope", list(PRICING_DEALS.keys()))
+
+        send_full_pricing = st.checkbox(
+            "Send me the complete pricing schedule for all storage options",
+            value=True,
+            help="Recommended. The confirmation email will include the full EagleView Estates pricing schedule.",
+        )
+
+        strategic_value = st.select_slider("2. Strategic Value of Location", options=VALUE_OPTIONS)
+        deployment_window = st.radio("3. Target Deployment Date", DEPLOYMENT_WINDOWS)
+        amenities = st.multiselect("4. Critical Site Amenities", AMENITIES)
+
+        name = st.text_input("Company / Representative Name", placeholder="Example: ABC Contracting Ltd.")
+        email = st.text_input("Direct Email", placeholder="name@company.com")
+
+        submitted = st.form_submit_button("Validate & Continue")
+
+    if submitted:
+        name_clean = name.strip()
+        email_clean = email.strip().lower()
+
+        if not name_clean:
+            st.warning("Please enter a company or representative name.")
+            return
+
+        if not is_valid_email(email_clean):
+            st.warning("Please enter a valid email address.")
+            return
+
+        st.session_state.user_data = {
+            "name": name_clean,
+            "email": email_clean,
+            "scope": scope,
+            "send_full_pricing": send_full_pricing,
+            "strategic_value": strategic_value,
+            "deployment_window": deployment_window,
+            "amenities": amenities,
+        }
+        st.session_state.page = "eoi"
+        st.rerun()
+
+
+def eoi_page() -> None:
+    data = st.session_state.get("user_data", {})
+    if not data:
+        reset_portal()
+        return
+
+    render_header()
+
+    name_safe = clean_text(data.get("name", ""))
+    scope_safe = clean_text(data.get("scope", ""))
+    deployment_safe = clean_text(data.get("deployment_window", ""))
+    amenities_safe = html.escape(", ".join(data.get("amenities", [])) or "To be confirmed")
+    pricing_mode = "Complete pricing schedule" if data.get("send_full_pricing", True) else "Selected scope pricing only"
+
+    st.markdown(
+        f"""
+        <div class='eoi-document'>
+            <h2 style='text-align:center; color:#d4af37; text-transform:uppercase;'>Statement of Interest</h2>
+            <p><span class='gold-text'>Prospective Tenant:</span> {name_safe}</p>
+            <hr style='border: 0.5px solid #d4af37;'>
+            <p><b>1. Scope:</b> Requirement identified for <span class='gold-text'>{scope_safe}</span>.</p>
+            <p><b>2. Target Window:</b> {deployment_safe}</p>
+            <p><b>3. Requested Amenities:</b> {amenities_safe}</p>
+            <p><b>4. Pricing Email:</b> {html.escape(pricing_mode)}</p>
+            <p><b>5. Non-Binding Acknowledgement:</b> This Statement of Interest is not a lease, reservation, or binding commitment. Final terms remain subject to availability, formal lease documentation, site readiness, and mutual approval.</p>
+            <p style='font-size:0.9rem; color:#bbbbbb; margin-top:1.5rem;'><i>By signing below, you confirm interest in receiving formal leasing information based on current site availability.</i></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    signature = st.text_input("Digital Signature", placeholder="Full name and title")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Back"):
+            st.session_state.page = "assessment"
+            st.rerun()
+
+    with col2:
+        if st.button("Execute & Send Pricing"):
+            if not signature.strip():
+                st.warning("Please enter your full name and title as a digital signature.")
+                return
+
+            st.session_state.user_data["signature"] = signature.strip()
+            result = send_emails_with_diagnostics(st.session_state.user_data)
+            st.session_state.email_result = result
+
+            if result.client_sent and result.admin_sent:
+                st.session_state.page = "thankyou"
+                st.rerun()
+
+            st.error("Email delivery failed or partially failed. Diagnostic details are below.")
+            render_email_diagnostics(result)
+
+
+def thankyou_page() -> None:
+    render_header()
+    result: Optional[EmailSendResult] = st.session_state.get("email_result")
+
+    st.markdown("<div style='text-align:center; margin-top:2rem; font-size:4rem;'>✔️</div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style='color:#d4af37; font-size:1.8rem; text-align:center; letter-spacing:0.22em; margin-bottom:1rem; text-transform:uppercase;'>
+            EOI Verified
+        </div>
+        <div class='notice-card'>
+            <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:0.12em;'>Pricing Schedule Sent</h4>
+            <p>Your confirmation email has been accepted by the mail server.</p>
+            <p>A verification copy was also sent to EagleView so delivery can be confirmed internally.</p>
+            <p>If the pricing package does not arrive shortly, check your <b style='color:#d4af37;'>Junk/Spam folder</b>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if result:
+        render_email_diagnostics(result)
+
+    if st.button("Submit Another EOI"):
+        reset_portal()
+
+
+def main() -> None:
+    initialize_state()
+    apply_global_styles()
+
+    page = st.session_state.get("page", "assessment")
+
+    if page == "assessment":
+        assessment_page()
+    elif page == "eoi":
+        eoi_page()
+    elif page == "thankyou":
+        thankyou_page()
+    else:
+        reset_portal()
+
+
+if __name__ == "__main__":
+    main()
