@@ -18,13 +18,13 @@ import streamlit as st
 
 # ============================================================
 # EagleView Estates | Expression of Interest Portal
-# Final master code
+# Final master code with tagline
 # ============================================================
 
-APP_TITLE = "EagleView Estates | Expression of Interest Portal"
+APP_TITLE = "EagleView Estates | Storage. Done your way."
 APP_ICON = "🦅"
 BRAND_NAME = "EagleView Estates"
-LOCATION_LINE = "Expression of Interest Portal • CentrePort Canada • Winnipeg"
+LOCATION_LINE = "Storage. Done your way. • Expression of Interest Portal • CentrePort Canada • Winnipeg"
 
 BACKGROUND_IMAGE = Path("site_photo.jpg")
 SITE_LAYOUT_OVERVIEW = Path("site_layout.pdf")
@@ -174,10 +174,6 @@ LAYOUT_FILES = {
 }
 
 
-# ============================================================
-# Configuration and utility helpers
-# ============================================================
-
 def safe_secret(name: str, default: str = "") -> str:
     try:
         value = st.secrets.get(name, default)
@@ -227,10 +223,6 @@ def encode_file_base64(path: Path) -> Optional[str]:
         logger.warning("Could not encode file %s: %s", path, exc)
     return None
 
-
-# ============================================================
-# Styling
-# ============================================================
 
 def apply_global_styles() -> None:
     background_image = encode_file_base64(BACKGROUND_IMAGE)
@@ -357,10 +349,6 @@ def reset_portal() -> None:
     st.rerun()
 
 
-# ============================================================
-# Business logic
-# ============================================================
-
 def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
     return f"""{scope}
 - Daily: {pricing.daily}
@@ -472,10 +460,6 @@ def is_high_value_lead(data: dict) -> bool:
     return score >= 75 or "Full Site" in data.get("space_requirement", "")
 
 
-# ============================================================
-# Attachments and lead backup
-# ============================================================
-
 def get_layout_file(data: dict) -> Optional[Path]:
     return LAYOUT_FILES.get(data.get("space_requirement", ""))
 
@@ -505,18 +489,8 @@ def attach_file(message: MIMEMultipart, file_path: Optional[Path], display_name:
 
 
 def attach_all_client_files(message: MIMEMultipart, data: dict) -> AttachmentStatus:
-    overview_ok, overview_status = attach_file(
-        message,
-        SITE_LAYOUT_OVERVIEW,
-        "EagleView_Site_Layout_Overview.pdf",
-        "pdf",
-    )
-    leasing_ok, leasing_status = attach_file(
-        message,
-        LEASING_AGREEMENT_PDF,
-        "EagleView_Preliminary_Leasing_Agreement.pdf",
-        "pdf",
-    )
+    overview_ok, overview_status = attach_file(message, SITE_LAYOUT_OVERVIEW, "EagleView_Site_Layout_Overview.pdf", "pdf")
+    leasing_ok, leasing_status = attach_file(message, LEASING_AGREEMENT_PDF, "EagleView_Preliminary_Leasing_Agreement.pdf", "pdf")
     size_ok, size_status = attach_file(
         message,
         get_layout_file(data),
@@ -594,10 +568,6 @@ def save_lead(data: dict, result: EmailSendResult, status: AttachmentStatus) -> 
         return f"Lead backup failed: {type(exc).__name__}: {exc}"
 
 
-# ============================================================
-# Email construction and delivery
-# ============================================================
-
 def build_client_email(data: dict, sender_email: str) -> Tuple[MIMEMultipart, AttachmentStatus]:
     message = MIMEMultipart()
     message["From"] = f"EagleView Estates <{sender_email}>"
@@ -645,14 +615,7 @@ The EagleView Estates Team"""
     return message, attachment_status
 
 
-def build_admin_email(
-    data: dict,
-    sender_email: str,
-    admin_email: str,
-    attachment_status: AttachmentStatus,
-    result: EmailSendResult,
-    lead_status: str,
-) -> MIMEMultipart:
+def build_admin_email(data: dict, sender_email: str, admin_email: str, attachment_status: AttachmentStatus, result: EmailSendResult, lead_status: str) -> MIMEMultipart:
     tier, score, follow_up, strategy = calculate_lead_score(data)
     high_value_warning = "\n*** HIGH-VALUE LEAD: DO NOT SEND STANDARD QUOTE ONLY — CUSTOM ALLOCATION REVIEW REQUIRED ***\n" if is_high_value_lead(data) else ""
     subject_prefix = "HIGH-VALUE LEAD - " if is_high_value_lead(data) else ""
@@ -792,10 +755,6 @@ def render_email_diagnostics(result: EmailSendResult) -> None:
         unsafe_allow_html=True,
     )
 
-
-# ============================================================
-# Pages
-# ============================================================
 
 def assessment_page() -> None:
     render_header()
