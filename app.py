@@ -5,108 +5,132 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # --- CONFIG ---
-st.set_page_config(page_title="EagleView Estates | Assessment", layout="centered", page_icon="🦅")
+st.set_page_config(page_title="EagleView Estates | Anchor Assessment", layout="centered", page_icon="🦅")
 
 # --- EMAIL FUNCTION ---
 def send_email(data):
-    # These secrets are set in your Streamlit Cloud Dashboard (Settings > Secrets)
-    # To test locally, you can replace these with strings, but DON'T push your password to GitHub!
-    sender_email = "info@eagleviewearthworks.com"
-    receiver_email = "info@eagleviewearthworks.com"
-    password = st.secrets["EMAIL_PASSWORD"] # Generate an 'App Password' in your email settings
-
-    message = MIMEMultipart()
-    message["From"] = sender_email
-    message["To"] = receiver_email
-    message["Subject"] = f"NEW LEAD: {data['name']} - EagleView Site Assessment"
-
-    body = f"""
-    New Market Assessment Received:
-    
-    Company/Name: {data['name']}
-    Contact: {data['contact']}
-    
-    1. Operational Need: {data['q1']}
-    2. Location Importance: {data['q2']}
-    3. Timeframe: {data['q3']}
-    4. Amenities: {data['q4']}
-    5. Pre-Lease Interest: {data['q5']}
-    """
-    
-    message.attach(MIMEText(body, "plain"))
-
     try:
-        # Using Gmail/Google Workspace settings as default
+        sender_email = "info@eagleviewearthworks.com"
+        receiver_email = "info@eagleviewearthworks.com"
+        password = st.secrets["EMAIL_PASSWORD"]
+
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = receiver_email
+        message["Subject"] = f"🚨 ANCHOR/LEAD INQUIRY: {data['name']}"
+
+        body = f"""
+        New High-Priority Assessment:
+        
+        Company/Name: {data['name']}
+        Contact: {data['contact']}
+        
+        1. Operational Need: {data['q1']}
+        2. Location Importance: {data['q2']}
+        3. Timeframe: {data['q3']}
+        4. Amenities: {data['q4']}
+        5. Pre-Lease Interest: {data['q5']}
+        """
+        
+        message.attach(MIMEText(body, "plain"))
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.as_string())
         server.quit()
         return True
-    except Exception as e:
-        st.error(f"Error sending email: {e}")
+    except:
         return False
 
-# --- PREMIUM BLACK & GOLD THEME ---
+# --- ENHANCED BLACK & GOLD THEME ---
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #ffffff; }
     .main-title {
-        text-align: center; font-size: 3em; font-weight: 200; letter-spacing: 7px; margin-top: 20px;
+        text-align: center; font-size: 3.5em; font-weight: 200; letter-spacing: 8px; margin-top: 20px;
         background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .subtext { color: #d4af37 !important; font-size: 1em; text-align: center; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase;}
-    h3 { color: #d4af37 !important; font-weight: 300; border-bottom: 1px solid #d4af37; padding-bottom: 10px; }
-    .stImage > img { border-radius: 4px; border: 1px solid #d4af37; box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); }
+    .subtext { color: #d4af37 !important; font-size: 1.1em; text-align: center; margin-bottom: 20px; letter-spacing: 3px; text-transform: uppercase;}
+    
+    /* ANCHOR TENANT CALLOUT BOX */
+    .anchor-card {
+        padding: 30px; 
+        background: linear-gradient(145deg, #0f0f0f, #1a1a1a);
+        border: 2px solid #d4af37; 
+        border-radius: 8px; 
+        text-align: center;
+        margin-bottom: 30px;
+        box-shadow: 0 0 30px rgba(212, 175, 55, 0.15);
+    }
+    .anchor-highlight {
+        color: #d4af37; font-size: 1.5em; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;
+    }
+    
+    h3 { color: #d4af37 !important; font-weight: 300; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .stButton>button { 
-        width: 100%; border-radius: 0px; height: 3.5em; background-color: #d4af37; 
+        width: 100%; border-radius: 0px; height: 4em; background-color: #d4af37; 
         color: #000000; font-weight: bold; border: none; letter-spacing: 2px; text-transform: uppercase;
     }
-    .stButton>button:hover { background-color: #ffffff; color: #000000; box-shadow: 0 0 15px #d4af37; }
-    .survey-card { padding: 25px; background-color: #0f0f0f; border: 1px solid #262626; border-radius: 4px; margin-bottom: 20px; }
+    .stButton>button:hover { background-color: #ffffff; box-shadow: 0 0 20px #d4af37; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- BRANDING ---
 st.markdown("<h1 class='main-title'>EAGLEVIEW ESTATES</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtext'>Industrial Infrastructure & Heavy Staging</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtext'>Premier Industrial Site Selection</p>", unsafe_allow_html=True)
 
-# --- SITE PHOTO ---
-if os.path.exists("site_photo.jpg"):
-    st.image("site_photo.jpg", caption="Red Fife Road - Secure Industrial Staging Area", use_column_width=True)
-
+# --- ANCHOR TENANT FEATURE ---
 st.markdown("""
-<div class='survey-card'>
-    <h3>Strategic Site Assessment</h3>
-    <p style='color: #888;'>We are securing a prime 1.5 to 5-acre parcel in the Rosser/CentrePort area. 
-    Final site engineering is underway for June 1st deployment.</p>
+<div class='anchor-card'>
+    <p style='margin:0; font-size: 0.8em; color: #888;'>STRATEGIC OPPORTUNITY</p>
+    <div class='anchor-highlight'>5-ACRE ANCHOR PARCEL</div>
+    <p style='color: #ffffff; margin-top: 10px;'>We are currently evaluating a full 5-acre expansion at 3275 Red Fife Rd. 
+    Ideal for heavy civil fleet bases or large-scale staging.</p>
 </div>
 """, unsafe_allow_html=True)
 
+# --- SITE PHOTO ---
+if os.path.exists("site_photo.jpg"):
+    st.image("site_photo.jpg", use_column_width=True)
+
 # --- SURVEY FORM ---
-with st.form("demand_assessment", clear_on_submit=True):
-    q1 = st.selectbox("1. Operational Need", ["Dedicated Pad (1-5k sqft)", "Anchor Tenant Parcel (1-5 Full Acres)", "Hourly/Daily Staging", "Winter Storage"])
-    q2 = st.select_slider("2. Importance of CentrePort/Rosser Location", options=["Low", "Convenient", "Strategic", "Essential", "Critical"])
-    q3 = st.radio("3. Desired Move-in Timeframe", ["Immediate (June 1st)", "Summer 2026", "Fall/Winter 2026"])
-    q4 = st.multiselect("4. Critical Site Amenities", ["24/7 Gate", "LED Lighting", "CCTV", "Engineered Gravel", "Maintenance Support"])
-    q5 = st.radio("5. Interest in a 'Pre-Lease' agreement to secure current rates and guaranteed space?", ["Yes", "Maybe", "No"])
+with st.form("anchor_survey", clear_on_submit=True):
+    st.write("### Facility Requirements")
     
+    # 1. BOLDER NEED OPTIONS
+    q1 = st.selectbox("1. Select Operational Scope", 
+                     ["💎 ANCHOR TENANT: Full 5-Acre Integrated Parcel", 
+                      "🏗️ DEDICATED PAD: 1,000 - 5,000 sqft", 
+                      "🚛 RAPID-STAGING: Daily / Hourly Flex Access", 
+                      "❄️ WINTER STORAGE: Heavy Equipment Only"])
+
+    q2 = st.select_slider("2. Strategic Value of CentrePort Proximity", options=["Low", "Neutral", "Important", "Strategic", "Critical"])
+    q3 = st.radio("3. Target Deployment Date", ["June 1st - Immediate", "Q3 2026", "2027 Strategic Planning"])
+    q4 = st.multiselect("4. Must-Have Amenities", ["Biometric/Coded Gate", "LED Lighting", "Live CCTV Feed", "Snow Removal", "Site Maintenance"])
+    
+    st.markdown("---")
+    # 5. PRE-LEASE BOLDER
+    q5 = st.radio("5. Secure your position with a 'Pre-Lease' agreement prior to the June 1st launch?", 
+                 ["YES - Send terms for the 5-Acre Parcel", 
+                  "YES - Send terms for a Dedicated Pad", 
+                  "MAYBE - Send pricing details", 
+                  "NO - On-demand only"])
+
     st.divider()
-    name = st.text_input("Company / Contact Name")
-    contact = st.text_input("Email or Phone")
+    name = st.text_input("Company / Representative Name")
+    contact = st.text_input("Direct Phone or Email")
 
     if st.form_submit_button("SUBMIT ASSESSMENT"):
         if name and contact:
             results = {"name": name, "contact": contact, "q1": q1, "q2": q2, "q3": q3, "q4": q4, "q5": q5}
             
-            # Attempt to send email
             if send_email(results):
-                st.success("Thank you very much for your time. We have received your assessment and look forward to partnering in the future.")
+                st.success("Thank you very much for your time. Your assessment has been prioritized. We look forward to partnering in the future.")
                 st.balloons()
             else:
-                st.error("Submission failed. Please contact info@eagleviewearthworks.com directly.")
+                st.error("Submission error. Please email info@eagleviewearthworks.com directly.")
         else:
-            st.warning("Please provide contact details.")
+            st.warning("Please provide contact information.")
 
-st.markdown("<br><p style='text-align: center; color: #444; font-size: 0.8em; letter-spacing: 3px;'>EAGLEVIEW ESTATES | ROSSER, MB</p>", unsafe_allow_html=True)
+st.markdown("<br><p style='text-align: center; color: #444; font-size: 0.8em; letter-spacing: 3px;'>EAGLEVIEW ESTATES | WINNIPEG INDUSTRIAL</p>", unsafe_allow_html=True)
