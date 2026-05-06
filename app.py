@@ -31,7 +31,7 @@ def set_png_as_page_bg(bin_file):
     else:
         st.markdown("<style>.stApp { background-color: #050505; }</style>", unsafe_allow_html=True)
 
-# Apply Background
+# Apply Immersive Background
 set_png_as_page_bg('site_photo.jpg')
 
 # --- DYNAMIC PRICING RANGES ---
@@ -77,23 +77,43 @@ def send_emails(data):
         password = st.secrets["EMAIL_PASSWORD"]
         p = PRICING_DEALS.get(data['q1'])
         
-        msg = MIMEMultipart()
-        msg["From"] = f"EagleView Estates <{sender_email}>"
-        msg["To"] = data['contact']
-        msg["Subject"] = f"Priority Pricing: {data['name']}"
+        # Admin Notification
+        msg_admin = MIMEMultipart()
+        msg_admin["From"] = f"EagleView Portal <{sender_email}>"
+        msg_admin["To"] = sender_email
+        msg_admin["Subject"] = f"🚨 NEW EOI: {data['name']}"
         
-        body = f"Dear {data['name']},\n\nSelection: {data['q1']}\n\nTerm Pricing:\n- Daily: {p['Daily']}\n- Weekly: {p['Weekly']}\n- Monthly: {p['Monthly']}\n- Yearly: {p['Yearly']}\n- Multi-Year: {p['Multi-Year']}\n\nSite Details: {p['details']}"
-        msg.attach(MIMEText(body, "plain"))
+        admin_body = f"""
+        New Submission Received:
+        Company: {data['name']}
+        Contact: {data['contact']}
+        Selection: {data['q1']}
+        Value: {data['q2']}
+        Timing: {data['q3']}
+        Amenities: {', '.join(data['q4'])}
+        Signature: {data.get('signature', 'N/A')}
+        """
+        msg_admin.attach(MIMEText(admin_body, "plain"))
+
+        # Client Response
+        msg_client = MIMEMultipart()
+        msg_client["From"] = f"EagleView Estates <{sender_email}>"
+        msg_client["To"] = data['contact']
+        msg_client["Subject"] = f"Priority Pricing & Site Plan: {data['name']}"
+        
+        client_body = f"Dear {data['name']},\n\nThank you for executing your Statement of Interest.\n\nTerm Pricing for {data['q1']}:\n- Daily: {p['Daily']}\n- Weekly: {p['Weekly']}\n- Monthly: {p['Monthly']}\n- Yearly: {p['Yearly']}\n- Multi-Year: {p['Multi-Year']}\n\nDisclaimer: Quotes are subject to change with availability and market conditions.\n\nBest regards,\nThe EagleView Team"
+        msg_client.attach(MIMEText(client_body, "plain"))
 
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(sender_email, password)
-        server.sendmail(sender_email, data['contact'], msg.as_string())
+        server.sendmail(sender_email, sender_email, msg_admin.as_string())
+        server.sendmail(sender_email, data['contact'], msg_client.as_string())
         server.quit()
         return True
     except: return False
 
-# --- GLOBAL STYLING ---
+# --- CSS GLOBAL ---
 st.markdown("""
     <style>
     .brand-gold {
@@ -103,7 +123,7 @@ st.markdown("""
     }
     .sub-brand { text-align: center; color: #d4af37; letter-spacing: 4px; font-size: 0.8em; text-transform: uppercase; margin-bottom: 40px; }
     .gold-text { color: #d4af37; font-weight: bold; }
-    [data-testid="stForm"] { background-color: rgba(0, 0, 0, 0.7) !important; border: 1px solid #d4af37 !important; padding: 30px !important; }
+    [data-testid="stForm"] { background-color: rgba(0, 0, 0, 0.75) !important; border: 1px solid #d4af37 !important; padding: 30px !important; border-radius: 5px; }
     .eoi-document {
         background-color: rgba(0, 0, 0, 0.9); color: #ffffff; padding: 45px; border: 1px solid #d4af37;
         border-radius: 2px; font-family: 'serif'; line-height: 1.4; margin-bottom: 30px;
@@ -125,13 +145,16 @@ if st.session_state.page == 'assessment':
     with st.form("assessment_form"):
         st.markdown("### <span class='gold-text'>Strategic Site Assessment</span>", unsafe_allow_html=True)
         q1 = st.selectbox("1. Operational Scope", list(PRICING_DEALS.keys()))
+        q2 = st.select_slider("2. Strategic Value of Location", options=["Low", "Neutral", "Important", "Strategic", "Critical"])
         q3 = st.radio("3. Target Deployment Date", ["June 1st - Immediate", "Summer 2026", "Fall/Winter 2026"])
+        q4 = st.multiselect("4. Critical Site Amenities", ["Biometric Access", "LED Lighting", "CCTV Surveillance", "Engineered Gravel", "Maintenance Support"])
+        
         name = st.text_input("Company / Representative Name")
         contact = st.text_input("Direct Email")
         
         if st.form_submit_button("VALIDATE & CONTINUE"):
             if name and contact:
-                st.session_state.user_data = {"name": name, "contact": contact, "q1": q1, "q3": q3}
+                st.session_state.user_data = {"name": name, "contact": contact, "q1": q1, "q2": q2, "q3": q3, "q4": q4}
                 st.session_state.page = 'eoi'
                 st.rerun()
             else: st.warning("All fields required.")
@@ -142,11 +165,12 @@ elif st.session_state.page == 'eoi':
     st.markdown(f"""
     <div class='eoi-document'>
         <h2 style='text-align: center; color: #d4af37; text-transform: uppercase;'>Statement of Interest</h2>
-        <p><span class='gold-text'>PROSPECTIVE TENANT:</span> {st.session_state.user_data.get('name', 'Valued Partner')}</p>
+        <p><span class='gold-text'>PROSPECTIVE TENANT:</span> {st.session_state.user_data.get('name')}</p>
         <hr style='border: 0.5px solid #d4af37;'>
         <p><b>1. SCOPE:</b> Requirement identified for <span class='gold-text'>{st.session_state.user_data.get('q1')}</span>.</p>
-        <p><b>2. PRIORITY:</b> Establishing site queue position for <b>{st.session_state.user_data.get('q3')}</b> window.</p>
-        <p style='font-size: 0.8em; color: #888;'>By signing, you unlock full-term pricing ranges for the selection above.</p>
+        <p><b>2. TERMS:</b> Quoted rates are subject to change with availability and market conditions.</p>
+        <p><b>3. PRIORITY:</b> Establishing site queue position for <b>{st.session_state.user_data.get('q3')}</b> window.</p>
+        <p style='font-size: 0.85em; color: #aaa; margin-top:20px;'><i>By signing, you confirm interest in receiving a formal lease draft based on current site availability.</i></p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -162,12 +186,13 @@ elif st.session_state.page == 'eoi':
 elif st.session_state.page == 'thankyou':
     st.markdown("<div class='brand-gold'>EagleView Estates</div>", unsafe_allow_html=True)
     st.markdown("<div style='text-align:center; margin-top:30px; font-size:4em;'>✔️</div>", unsafe_allow_html=True)
-    st.markdown("<div style='color:#d4af37; font-size: 1.8em; text-align:center; letter-spacing: 5px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#d4af37; font-size: 1.8em; text-align:center; letter-spacing: 5px; margin-bottom: 20px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
     
     st.markdown(f"""
-        <div style='background: linear-gradient(145deg, rgba(26,26,26,0.9), rgba(0,0,0,0.9)); border: 2px solid #d4af37; padding: 25px; border-radius: 10px; text-align: center; max-width: 600px; margin: 40px auto;'>
+        <div style='background: linear-gradient(145deg, rgba(26,26,26,0.95), rgba(0,0,0,0.95)); border: 2px solid #d4af37; padding: 25px; border-radius: 10px; text-align: center; max-width: 600px; margin: 0 auto;'>
             <h4 style='color: #d4af37; margin-top: 0; text-transform: uppercase; letter-spacing: 2px;'>⚠️ Critical Action Required</h4>
-            <p style='color: #ffffff;'>Check your <b style='color: #d4af37;'>Junk/Spam folder</b> if the pricing doesn't arrive within 60 seconds.</p>
-            <p style='color: #ffffff;'>Mark the email as <b style='color: #d4af37;'>"Not Junk"</b> to ensure delivery of lease docs.</p>
+            <p style='color: #ffffff;'>If your pricing package doesn't arrive in 60 seconds:</p>
+            <p style='color: #ffffff;'>1. Check your <b style='color: #d4af37;'>Junk/Spam folder</b>.</p>
+            <p style='color: #ffffff;'>2. Mark as <b style='color: #d4af37;'>"Not Junk"</b> to ensure delivery of lease docs.</p>
         </div>
     """, unsafe_allow_html=True)
