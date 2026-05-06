@@ -12,10 +12,10 @@ from typing import Dict, List, Optional, Tuple
 
 import streamlit as st
 
-APP_TITLE = "EagleView Estates | EOI Portal"
+APP_TITLE = "EagleView Estates | Private Yard Allocation Portal"
 APP_ICON = "🦅"
 BRAND_NAME = "EagleView Estates"
-LOCATION_LINE = "CentrePort Canada • Winnipeg"
+LOCATION_LINE = "Private Yard Allocation Portal • CentrePort Canada • Winnipeg"
 BACKGROUND_IMAGE = Path("site_photo.jpg")
 
 DEFAULT_SENDER_EMAIL = "info@eagleviewearthworks.com"
@@ -94,6 +94,39 @@ AMENITIES = [
     "Wide Drive Aisles",
     "Maintenance Support",
     "Long-Term Lease Options",
+    "Exclusive / Dedicated Yard Area",
+    "After-Hours Access",
+    "Snow Clearing / Winter Operations",
+    "Power Availability",
+]
+
+LEASE_TERMS = [
+    "Short-Term: Daily / Weekly",
+    "Monthly Rolling",
+    "Seasonal: 3-8 Months",
+    "Annual Lease",
+    "Multi-Year: 2-5 Years",
+    "Anchor / Exclusive Site Allocation",
+]
+
+SPACE_REQUIREMENTS = [
+    "Under 1,000 sq ft",
+    "1,000 - 5,000 sq ft",
+    "5,000 - 10,000 sq ft",
+    "10,000 - 25,000 sq ft",
+    "25,000 - 50,000 sq ft",
+    "Full Site / Anchor Requirement",
+]
+
+CLIENT_TYPES = [
+    "General Contractor",
+    "Civil / Earthworks Contractor",
+    "Utility / Infrastructure Contractor",
+    "Transportation / Logistics",
+    "Energy / Industrial Services",
+    "Government / Institutional",
+    "Developer / Construction Manager",
+    "Other Commercial User",
 ]
 
 DEPLOYMENT_WINDOWS = [
@@ -299,6 +332,14 @@ def requested_pricing_block(data: dict) -> str:
         return format_single_pricing_block(scope, PRICING_DEALS[scope])
 
     return format_full_pricing_schedule()
+
+
+def calculate_lead_score(data: dict) -> Tuple[str, int, str, str]:
+    """Return lead tier, numeric score, follow-up urgency, and pricing strategy."""
+    score = 0
+
+    scope = data.get("scope", "")
+    space = data.get("space_requirement", "")
 
 
 def build_admin_email(data: dict, sender_email: str, admin_email: str) -> MIMEMultipart:
