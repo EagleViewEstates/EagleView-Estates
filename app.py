@@ -17,17 +17,18 @@ from typing import Dict, List, Optional, Tuple
 import streamlit as st
 
 # ============================================================
-# EagleView Estates | Private Yard Allocation Portal
-# Stable master version: no optional dependencies required
+# EagleView Estates | Expression of Interest Portal
+# Final master code
 # ============================================================
 
-APP_TITLE = "EagleView Estates | Private Yard Allocation Portal"
+APP_TITLE = "EagleView Estates | Expression of Interest Portal"
 APP_ICON = "🦅"
 BRAND_NAME = "EagleView Estates"
-LOCATION_LINE = "Private Yard Allocation Portal • CentrePort Canada • Winnipeg"
+LOCATION_LINE = "Expression of Interest Portal • CentrePort Canada • Winnipeg"
 
 BACKGROUND_IMAGE = Path("site_photo.jpg")
 SITE_LAYOUT_OVERVIEW = Path("site_layout.pdf")
+LEASING_AGREEMENT_PDF = Path("EagleView_Preliminary_Leasing_Agreement.pdf")
 LAYOUT_DIRECTORY = Path("layouts")
 DATA_DIRECTORY = Path("data")
 LEAD_CSV_FILE = DATA_DIRECTORY / "eagleview_leads.csv"
@@ -36,6 +37,7 @@ DEFAULT_SENDER_EMAIL = "info@eagleviewearthworks.com"
 DEFAULT_ADMIN_EMAIL = "info@eagleviewearthworks.com"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
+MAX_ATTACHMENT_MB = 10
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -55,6 +57,16 @@ class PricingDeal:
 
 
 @dataclass
+class AttachmentStatus:
+    overview_attached: bool = False
+    overview_status: str = ""
+    leasing_agreement_attached: bool = False
+    leasing_agreement_status: str = ""
+    size_layout_attached: bool = False
+    size_layout_status: str = ""
+
+
+@dataclass
 class EmailSendResult:
     client_sent: bool = False
     admin_sent: bool = False
@@ -64,14 +76,6 @@ class EmailSendResult:
     sender_email: str = ""
     admin_email: str = ""
     client_email: str = ""
-
-
-@dataclass
-class AttachmentStatus:
-    overview_attached: bool = False
-    overview_status: str = ""
-    size_layout_attached: bool = False
-    size_layout_status: str = ""
 
 
 PRICING_DEALS: Dict[str, PricingDeal] = {
@@ -153,7 +157,12 @@ AMENITIES = [
 ]
 
 VALUE_OPTIONS = ["Low", "Neutral", "Important", "Strategic", "Critical"]
-DEPLOYMENT_WINDOWS = ["June 1 - Immediate Requirement", "Summer 2026", "Fall/Winter 2026", "Flexible / Planning Ahead"]
+DEPLOYMENT_WINDOWS = [
+    "June 1 - Immediate Requirement",
+    "Summer 2026",
+    "Fall/Winter 2026",
+    "Flexible / Planning Ahead",
+]
 
 LAYOUT_FILES = {
     "Under 1,000 sq ft": LAYOUT_DIRECTORY / "layout_under_1000.pdf",
@@ -166,7 +175,7 @@ LAYOUT_FILES = {
 
 
 # ============================================================
-# General helpers
+# Configuration and utility helpers
 # ============================================================
 
 def safe_secret(name: str, default: str = "") -> str:
@@ -201,13 +210,13 @@ def is_valid_email(email: str) -> bool:
     return bool(EMAIL_PATTERN.match(email.strip()))
 
 
-def safe_html_text(value: str) -> str:
+def safe_html_text(value: object) -> str:
     return html.escape(str(value or ""))
 
 
-def safe_filename(value: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", str(value or "prospect")).strip("_")
-    return cleaned or "prospect"
+def safe_filename(value: object) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", str(value or "file")).strip("_")
+    return cleaned or "file"
 
 
 def encode_file_base64(path: Path) -> Optional[str]:
@@ -241,17 +250,89 @@ def apply_global_styles() -> None:
         f"""
         <style>
         {background_css}
-        .brand-title {{ text-align:center; font-family:Georgia,serif; font-size:clamp(2.2rem,7vw,4rem); font-weight:300; letter-spacing:.22em; margin:2rem 0 .25rem; background:linear-gradient(to right,#bf953f,#fcf6ba,#b38728,#fbf5b7,#aa771c); -webkit-background-clip:text; -webkit-text-fill-color:transparent; text-transform:uppercase; }}
-        .sub-brand {{ text-align:center; color:#d4af37; letter-spacing:.18em; font-size:.82rem; text-transform:uppercase; margin-bottom:2rem; }}
+        .brand-title {{
+            text-align:center;
+            font-family:Georgia,serif;
+            font-size:clamp(2.2rem,7vw,4rem);
+            font-weight:300;
+            letter-spacing:.22em;
+            margin:2rem 0 .25rem;
+            background:linear-gradient(to right,#bf953f,#fcf6ba,#b38728,#fbf5b7,#aa771c);
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            text-transform:uppercase;
+        }}
+        .sub-brand {{
+            text-align:center;
+            color:#d4af37;
+            letter-spacing:.18em;
+            font-size:.82rem;
+            text-transform:uppercase;
+            margin-bottom:2rem;
+        }}
         .gold-text {{ color:#d4af37; font-weight:700; }}
-        [data-testid="stForm"] {{ background-color:rgba(0,0,0,.80)!important; border:1px solid #d4af37!important; padding:2rem!important; border-radius:.75rem; box-shadow:0 0 40px rgba(212,175,55,.12); }}
-        .eoi-document {{ background-color:rgba(0,0,0,.92); color:#fff; padding:clamp(1.5rem,4vw,3rem); border:1px solid #d4af37; border-radius:.75rem; font-family:Georgia,serif; line-height:1.55; margin-bottom:1.8rem; box-shadow:0 0 40px rgba(212,175,55,.2); }}
-        .notice-card {{ background:linear-gradient(145deg,rgba(26,26,26,.95),rgba(0,0,0,.95)); border:2px solid #d4af37; padding:1.8rem; border-radius:1rem; text-align:center; max-width:760px; margin:1.5rem auto; color:#fff; }}
-        .diagnostic-card {{ background:rgba(0,0,0,.76); border:1px solid rgba(212,175,55,.65); padding:1rem; border-radius:.75rem; margin-top:1rem; color:#fff; font-size:.9rem; }}
-        .privacy-note {{ font-size:.85rem; color:#ccc; border-left:3px solid #d4af37; padding-left:.9rem; margin-top:.75rem; }}
-        .stButton>button, .stFormSubmitButton>button {{ background-color:#d4af37!important; color:#000!important; font-weight:800; border-radius:.35rem; min-height:3.4rem; width:100%; border:none; letter-spacing:.12em; text-transform:uppercase; }}
-        .stButton>button:hover, .stFormSubmitButton>button:hover {{ background-color:#fff!important; box-shadow:0 0 20px rgba(212,175,55,.8); }}
-        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox, .stTextArea {{ color:#fff!important; }}
+        [data-testid="stForm"] {{
+            background-color:rgba(0,0,0,.80)!important;
+            border:1px solid #d4af37!important;
+            padding:2rem!important;
+            border-radius:.75rem;
+            box-shadow:0 0 40px rgba(212,175,55,.12);
+        }}
+        .eoi-document {{
+            background-color:rgba(0,0,0,.92);
+            color:#fff;
+            padding:clamp(1.5rem,4vw,3rem);
+            border:1px solid #d4af37;
+            border-radius:.75rem;
+            font-family:Georgia,serif;
+            line-height:1.55;
+            margin-bottom:1.8rem;
+            box-shadow:0 0 40px rgba(212,175,55,.2);
+        }}
+        .notice-card {{
+            background:linear-gradient(145deg,rgba(26,26,26,.95),rgba(0,0,0,.95));
+            border:2px solid #d4af37;
+            padding:1.8rem;
+            border-radius:1rem;
+            text-align:center;
+            max-width:760px;
+            margin:1.5rem auto;
+            color:#fff;
+        }}
+        .diagnostic-card {{
+            background:rgba(0,0,0,.76);
+            border:1px solid rgba(212,175,55,.65);
+            padding:1rem;
+            border-radius:.75rem;
+            margin-top:1rem;
+            color:#fff;
+            font-size:.9rem;
+        }}
+        .privacy-note {{
+            font-size:.85rem;
+            color:#ccc;
+            border-left:3px solid #d4af37;
+            padding-left:.9rem;
+            margin-top:.75rem;
+        }}
+        .stButton>button, .stFormSubmitButton>button {{
+            background-color:#d4af37!important;
+            color:#000!important;
+            font-weight:800;
+            border-radius:.35rem;
+            min-height:3.4rem;
+            width:100%;
+            border:none;
+            letter-spacing:.12em;
+            text-transform:uppercase;
+        }}
+        .stButton>button:hover, .stFormSubmitButton>button:hover {{
+            background-color:#fff!important;
+            box-shadow:0 0 20px rgba(212,175,55,.8);
+        }}
+        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox, .stTextArea {{
+            color:#fff!important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -296,7 +377,7 @@ def format_full_pricing_schedule() -> str:
 
 def requested_pricing_block(data: dict) -> str:
     scope = data.get("scope", "")
-    if data.get("send_full_pricing", True) or scope not in PRICING_DEALS:
+    if data.get("send_full_pricing", False) or scope not in PRICING_DEALS:
         return format_full_pricing_schedule()
     return format_single_pricing_block(scope, PRICING_DEALS[scope])
 
@@ -392,7 +473,7 @@ def is_high_value_lead(data: dict) -> bool:
 
 
 # ============================================================
-# Attachments and backup
+# Attachments and lead backup
 # ============================================================
 
 def get_layout_file(data: dict) -> Optional[Path]:
@@ -404,6 +485,14 @@ def attach_file(message: MIMEMultipart, file_path: Optional[Path], display_name:
         return False, "No file mapped."
     if not file_path.exists():
         return False, f"File missing: {file_path}"
+
+    try:
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        if file_size_mb > MAX_ATTACHMENT_MB:
+            return False, f"File too large: {file_path} is {file_size_mb:.1f} MB. Limit is {MAX_ATTACHMENT_MB} MB."
+    except Exception as exc:
+        return False, f"Could not inspect file size for {file_path}: {type(exc).__name__}: {exc}"
+
     try:
         with file_path.open("rb") as file:
             part = MIMEApplication(file.read(), _subtype=subtype, Name=display_name)
@@ -422,13 +511,26 @@ def attach_all_client_files(message: MIMEMultipart, data: dict) -> AttachmentSta
         "EagleView_Site_Layout_Overview.pdf",
         "pdf",
     )
+    leasing_ok, leasing_status = attach_file(
+        message,
+        LEASING_AGREEMENT_PDF,
+        "EagleView_Preliminary_Leasing_Agreement.pdf",
+        "pdf",
+    )
     size_ok, size_status = attach_file(
         message,
         get_layout_file(data),
         f"EagleView_Yard_Allocation_{safe_filename(data.get('space_requirement'))}.pdf",
         "pdf",
     )
-    return AttachmentStatus(overview_ok, overview_status, size_ok, size_status)
+    return AttachmentStatus(
+        overview_attached=overview_ok,
+        overview_status=overview_status,
+        leasing_agreement_attached=leasing_ok,
+        leasing_agreement_status=leasing_status,
+        size_layout_attached=size_ok,
+        size_layout_status=size_status,
+    )
 
 
 def format_attachment_report(status: Optional[AttachmentStatus]) -> str:
@@ -436,23 +538,27 @@ def format_attachment_report(status: Optional[AttachmentStatus]) -> str:
         return "Attachment status unavailable."
     return f"""Universal Site Layout Overview PDF: {'Attached' if status.overview_attached else 'NOT ATTACHED'}
 Overview Status: {status.overview_status}
+Preliminary Leasing Agreement PDF: {'Attached' if status.leasing_agreement_attached else 'NOT ATTACHED'}
+Leasing Agreement Status: {status.leasing_agreement_status}
 Size-Specific Layout: {'Attached' if status.size_layout_attached else 'NOT ATTACHED'}
 Size-Specific Status: {status.size_layout_status}"""
 
 
-def save_lead(data: dict, result: Optional[EmailSendResult], status: Optional[AttachmentStatus]) -> str:
+def save_lead(data: dict, result: EmailSendResult, status: AttachmentStatus) -> str:
     try:
         ensure_directories()
         tier, score, follow_up, strategy = calculate_lead_score(data)
+        submission_status = "email_sent" if result.client_sent and result.admin_sent else "email_failed_or_partial"
         row = {
             "submitted_at_utc": datetime.now(timezone.utc).isoformat(),
+            "submission_status": submission_status,
             "company_or_rep": data.get("name", ""),
             "email": data.get("email", ""),
             "client_type": data.get("client_type", ""),
             "scope": data.get("scope", ""),
             "space_requirement": data.get("space_requirement", ""),
             "lease_term": data.get("lease_term", ""),
-            "send_full_pricing": data.get("send_full_pricing", True),
+            "send_full_pricing": data.get("send_full_pricing", False),
             "strategic_value": data.get("strategic_value", ""),
             "deployment_window": data.get("deployment_window", ""),
             "amenities": json.dumps(data.get("amenities", [])),
@@ -465,12 +571,16 @@ def save_lead(data: dict, result: Optional[EmailSendResult], status: Optional[At
             "follow_up": follow_up,
             "pricing_strategy": strategy,
             "estimated_monthly_value": estimate_monthly_value(data),
-            "client_email_sent": result.client_sent if result else "",
-            "admin_email_sent": result.admin_sent if result else "",
-            "client_error": result.client_error if result else "",
-            "admin_error": result.admin_error if result else "",
-            "overview_attached": status.overview_attached if status else "",
-            "size_layout_attached": status.size_layout_attached if status else "",
+            "client_email_sent": result.client_sent,
+            "admin_email_sent": result.admin_sent,
+            "client_error": result.client_error,
+            "admin_error": result.admin_error,
+            "overview_attached": status.overview_attached,
+            "overview_status": status.overview_status,
+            "leasing_agreement_attached": status.leasing_agreement_attached,
+            "leasing_agreement_status": status.leasing_agreement_status,
+            "size_layout_attached": status.size_layout_attached,
+            "size_layout_status": status.size_layout_status,
         }
         file_exists = LEAD_CSV_FILE.exists()
         with LEAD_CSV_FILE.open("a", newline="", encoding="utf-8") as file:
@@ -485,24 +595,24 @@ def save_lead(data: dict, result: Optional[EmailSendResult], status: Optional[At
 
 
 # ============================================================
-# Email builders and sending
+# Email construction and delivery
 # ============================================================
 
 def build_client_email(data: dict, sender_email: str) -> Tuple[MIMEMultipart, AttachmentStatus]:
     message = MIMEMultipart()
     message["From"] = f"EagleView Estates <{sender_email}>"
     message["To"] = data["email"]
-    message["Subject"] = "EagleView Estates: Preliminary Yard Leasing Framework"
+    message["Subject"] = "EagleView Estates: Expression of Interest Confirmation"
 
-    pricing_intro = "Complete current pricing schedule:" if data.get("send_full_pricing", True) else f"Current pricing indication for {data.get('scope')}:"
+    pricing_intro = "Complete preliminary pricing schedule:" if data.get("send_full_pricing", False) else f"Preliminary pricing indication for {data.get('scope')}:"
     booking_link = get_booking_link()
     booking_text = f"\nSchedule Private Site Allocation Review:\n{booking_link}\n" if booking_link else "\nNext Step:\nEagleView may complete a private site allocation review before confirming availability.\n"
 
     body = f"""Hello {data.get('name')},
 
-Thank you for submitting your private yard allocation request for EagleView Estates.
+Thank you for submitting your Expression of Interest Request for EagleView Estates.
 
-Preliminary requirement:
+Preliminary requirement received:
 - Client Type: {data.get('client_type')}
 - Operational Scope: {data.get('scope')}
 - Approximate Space Requirement: {data.get('space_requirement')}
@@ -514,6 +624,7 @@ Preliminary requirement:
 
 Attached Package:
 - EagleView Site Layout Overview PDF
+- Preliminary Leasing Agreement PDF for review and acceptance
 - Size-specific yard allocation exhibit, when available
 
 Important Disclaimer:
@@ -526,11 +637,22 @@ Best regards,
 The EagleView Estates Team"""
     message.attach(MIMEText(body, "plain"))
     attachment_status = attach_all_client_files(message, data)
-    message["X-EagleView-Attachments"] = f"overview={attachment_status.overview_attached}; size={attachment_status.size_layout_attached}"
+    message["X-EagleView-Attachments"] = (
+        f"overview={attachment_status.overview_attached}; "
+        f"leasing_agreement={attachment_status.leasing_agreement_attached}; "
+        f"size={attachment_status.size_layout_attached}"
+    )
     return message, attachment_status
 
 
-def build_admin_email(data: dict, sender_email: str, admin_email: str, attachment_status: Optional[AttachmentStatus], lead_status: str) -> MIMEMultipart:
+def build_admin_email(
+    data: dict,
+    sender_email: str,
+    admin_email: str,
+    attachment_status: AttachmentStatus,
+    result: EmailSendResult,
+    lead_status: str,
+) -> MIMEMultipart:
     tier, score, follow_up, strategy = calculate_lead_score(data)
     high_value_warning = "\n*** HIGH-VALUE LEAD: DO NOT SEND STANDARD QUOTE ONLY — CUSTOM ALLOCATION REVIEW REQUIRED ***\n" if is_high_value_lead(data) else ""
     subject_prefix = "HIGH-VALUE LEAD - " if is_high_value_lead(data) else ""
@@ -538,9 +660,9 @@ def build_admin_email(data: dict, sender_email: str, admin_email: str, attachmen
     message = MIMEMultipart()
     message["From"] = f"EagleView Portal <{sender_email}>"
     message["To"] = admin_email
-    message["Subject"] = f"{subject_prefix}New Allocation Request: {data.get('name')}"
+    message["Subject"] = f"{subject_prefix}New EOI Request: {data.get('name')}"
 
-    body = f"""New private yard allocation request received.
+    body = f"""New Expression of Interest Request received.
 {high_value_warning}
 Company / Representative: {data.get('name')}
 Email: {data.get('email')}
@@ -563,6 +685,10 @@ Follow-Up Urgency: {follow_up}
 Recommended Pricing Strategy: {strategy}
 Estimated Monthly Value: {estimate_monthly_value(data)}
 
+Client Email Delivery:
+Client Confirmation Accepted by SMTP: {'YES' if result.client_sent else 'NO'}
+Client Error: {result.client_error or 'None'}
+
 Attachment Report:
 {format_attachment_report(attachment_status)}
 
@@ -573,7 +699,7 @@ Pricing Sent To Prospect:
 {requested_pricing_block(data)}
 
 Notes:
-This is a non-binding allocation request only. No lease has been executed through the portal."""
+This is a non-binding Expression of Interest Request only. No lease has been executed through the portal."""
     message.attach(MIMEText(body, "plain"))
     return message
 
@@ -599,14 +725,12 @@ def send_emails(data: dict) -> Tuple[EmailSendResult, AttachmentStatus, str]:
     )
 
     client_message, attachment_status = build_client_email(data, sender_email)
-    initial_lead_status = save_lead(data, None, attachment_status)
-    admin_message = build_admin_email(data, sender_email, admin_email, attachment_status, initial_lead_status)
 
     if not password:
         result.client_error = "Missing EMAIL_PASSWORD in Streamlit secrets."
         result.admin_error = "Missing EMAIL_PASSWORD in Streamlit secrets."
-        final_status = save_lead(data, result, attachment_status)
-        return result, attachment_status, final_status
+        lead_status = save_lead(data, result, attachment_status)
+        return result, attachment_status, lead_status
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=25) as server:
@@ -620,6 +744,16 @@ def send_emails(data: dict) -> Tuple[EmailSendResult, AttachmentStatus, str]:
                 client_message,
                 sender_email,
                 [data["email"], admin_email],
+            )
+
+            provisional_lead_status = save_lead(data, result, attachment_status)
+            admin_message = build_admin_email(
+                data=data,
+                sender_email=sender_email,
+                admin_email=admin_email,
+                attachment_status=attachment_status,
+                result=result,
+                lead_status=provisional_lead_status,
             )
             result.admin_sent, result.admin_error = send_one_email(
                 server,
@@ -673,7 +807,11 @@ def assessment_page() -> None:
         scope = st.selectbox("2. Operational Scope", list(PRICING_DEALS.keys()))
         space_requirement = st.selectbox("3. Approximate Space Requirement", SPACE_REQUIREMENTS)
         lease_term = st.selectbox("4. Preferred Lease Structure", LEASE_TERMS)
-        send_full_pricing = st.checkbox("Send me the complete preliminary pricing schedule for all storage options", value=True)
+        send_full_pricing = st.checkbox(
+            "Send me the complete preliminary pricing schedule for all storage options",
+            value=False,
+            help="For major or custom requirements, EagleView may provide a tailored pricing review instead of relying only on standard schedule pricing.",
+        )
         strategic_value = st.select_slider("5. Strategic Value of Location", options=VALUE_OPTIONS)
         deployment_window = st.radio("6. Target Deployment Date", DEPLOYMENT_WINDOWS)
         amenities = st.multiselect("7. Critical Site Requirements", AMENITIES)
@@ -734,7 +872,6 @@ def eoi_page() -> None:
         return
 
     render_header()
-    lead_tier, lead_score, _, _ = calculate_lead_score(data)
     st.markdown(
         f"""
         <div class='eoi-document'>
@@ -746,7 +883,7 @@ def eoi_page() -> None:
         <p><b>3. Space Requirement:</b> {safe_html_text(data.get('space_requirement'))}</p>
         <p><b>4. Lease Structure:</b> {safe_html_text(data.get('lease_term'))}</p>
         <p><b>5. Target Window:</b> {safe_html_text(data.get('deployment_window'))}</p>
-        <p><b>6. Internal Qualification:</b> {safe_html_text(lead_tier)} — Score {lead_score}/125</p>
+        <p><b>6. Preliminary Review:</b> Your request will be reviewed for availability, access requirements, insurance requirements, and site allocation suitability.</p>
         <p><b>7. Non-Binding Acknowledgement:</b> This request is not a lease, reservation, exclusivity, or binding commitment.</p>
         <p style='font-size:.9rem; color:#bbb; margin-top:1.5rem;'><i>By signing below, you confirm interest in receiving preliminary leasing information and, where applicable, a private site allocation review.</i></p>
         </div>
@@ -761,7 +898,7 @@ def eoi_page() -> None:
             st.session_state.page = "assessment"
             st.rerun()
     with col2:
-        if st.button("Submit Allocation Request"):
+        if st.button("Submit EOI Request"):
             if not signature.strip():
                 st.warning("Please enter your full name and title as a digital signature.")
                 return
@@ -791,7 +928,7 @@ def thankyou_page() -> None:
         <div style='color:#d4af37; font-size:1.8rem; text-align:center; letter-spacing:.22em; margin-bottom:1rem; text-transform:uppercase;'>Request Received</div>
         <div class='notice-card'>
         <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:.12em;'>Expression of Interest Request Received</h4>
-        <p>Your preliminary leasing framework has been accepted by the mail server.</p>
+        <p>Your Expression of Interest Request has been received. A preliminary leasing package has been sent to the email provided.</p>
         <p>A verification copy was also sent to EagleView for internal review and follow-up.</p>
         {booking_html}
         <p>If the confirmation package does not arrive shortly, check your <b style='color:#d4af37;'>Junk/Spam folder</b>.</p>
@@ -800,7 +937,7 @@ def thankyou_page() -> None:
         unsafe_allow_html=True,
     )
 
-    if st.button("Submit Another Allocation Request"):
+    if st.button("Submit Another EOI Request"):
         reset_portal()
 
 
