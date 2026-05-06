@@ -1,9 +1,10 @@
 import streamlit as st
+import os
 
 # --- CONFIG & THEME ---
 st.set_page_config(page_title="EagleView Estates | Market Assessment", layout="centered", page_icon="🦅")
 
-# Custom CSS for the Blue/Black Premium Aesthetic
+# Custom CSS for the Blue/Black Premium Aesthetic & Images
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #ffffff; }
@@ -13,7 +14,15 @@ st.markdown("""
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     h3 { color: #3b82f6 !important; font-weight: 300; }
-    .subtext { color: #60a5fa !important; font-size: 1em; text-align: center; margin-bottom: 30px; letter-spacing: 1px; text-transform: uppercase;}
+    .subtext { color: #60a5fa !important; font-size: 1em; text-align: center; margin-bottom: 20px; letter-spacing: 1px; text-transform: uppercase;}
+    
+    /* Premium Image Styling */
+    .stImage > img {
+        border-radius: 8px;
+        border: 1px solid #1e3a8a;
+        box-shadow: 0 5px 25px rgba(59, 130, 246, 0.3);
+        margin-bottom: 25px;
+    }
     
     .survey-card {
         padding: 30px; background-color: #0a0a0a; border-radius: 8px; border: 1px solid #1e3a8a; 
@@ -32,62 +41,33 @@ st.markdown("""
 st.markdown("<h1 class='main-title'>EAGLEVIEW ESTATES</h1>", unsafe_allow_html=True)
 st.markdown("<p class='subtext'>Industrial Site Selection & Demand Assessment</p>", unsafe_allow_html=True)
 
+# --- SITE PHOTO ---
+if os.path.exists("site_photo.jpg"):
+    st.image("site_photo.jpg", caption="Red Fife Road - Secure Industrial Staging Area", use_column_width=True)
+else:
+    st.info("Photo placeholder: Upload 'site_photo.jpg' to GitHub to display the site image here.")
+
 st.markdown("""
 <div class='survey-card'>
     <h3>Strategic Facility Planning</h3>
-    <p style='color: #a1a1aa;'>We are deploying a 1.5-acre high-load industrial pad at CentrePort. 
-    Your feedback directly influences the final site amenities and security protocols.</p>
+    <p style='color: #a1a1aa;'>We are deploying a 1.5-acre high-load industrial pad at CentrePort, with immediate expansion capabilities up to a full <b>5-acre parcel</b> for large-scale operations or an anchor tenant. 
+    Your feedback directly influences our site configurations, amenities, and security protocols.</p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- SURVEY FORM ---
 with st.form("demand_survey"):
     
-    # Question 1: Industry
     q1 = st.selectbox("1. Industry Sector", 
                      ["General Contracting", "Heavy Civil / Earthworks", "Logistics & Transport", "Landscaping / Snow Removal", "Other"])
     
-    # Question 2: Use Case
     q2 = st.radio("2. Primary Storage Need", 
-                 ["Long-term Dedicated Pad", "Hourly/Daily Staging", "Seasonal Overload"])
+                 ["Long-term Dedicated Pad (1k - 5k sqft)", "Large-Scale Fleet Base (1 to 5 Acres)", "Hourly/Daily Staging", "Seasonal Overload"])
     
-    # Question 3: Amenities
     q3 = st.multiselect("3. High-Priority Features", 
                        ["24/7 Gate Access", "LED Site Lighting", "High-Definition CCTV", "Snow Removal Service", "On-site Earthworks Crew"])
     
-    # Question 4: Location Value
     q4 = st.select_slider("4. Strategic Value of a CentrePort Location", 
                          options=["Low", "Moderate", "Neutral", "High", "Critical"])
     
-    # Question 5: Pain Points
-    q5 = st.text_area("5. What is the #1 problem with your current storage/parking yard?")
-
-    # --- THE CRITICAL "PRE-LEASE" QUESTION ---
-    st.markdown("---")
-    st.markdown("### Availability & Reservation")
-    q6 = st.radio("6. Would your firm be interested in signing a 'Pre-Lease' agreement to guarantee a dedicated pad for a June 1st move-in?",
-                 ["Yes - Contact me immediately with terms", 
-                  "Maybe - I need more details on pricing", 
-                  "No - We only require on-demand hourly access"])
-
-    st.divider()
-    
-    # Lead Capture
-    st.markdown("### Contact Details")
-    name = st.text_input("Contact Name / Company")
-    email = st.text_input("Email or Phone Number")
-    
-    submit_button = st.form_submit_button("SUBMIT MARKET ASSESSMENT")
-
-if submit_button:
-    if email and name:
-        st.success(f"Thank you, {name}. Your assessment has been recorded.")
-        # Logic for pre-lease interest
-        if "Yes" in q6:
-            st.info("⚡ Priority Flag: Our team will move you to the top of the June 1st queue.")
-        st.balloons()
-    else:
-        st.warning("Please provide your contact details so we can verify your entry.")
-
-# --- FOOTER ---
-st.markdown("<br><p style='text-align: center; color: #333; font-size: 0.8em;'>© 2026 EAGLEVIEW ESTATES | WINNIPEG, MB</p>", unsafe_allow_html=True)
+    q5 = st.text_area("5. What is the
