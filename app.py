@@ -7,23 +7,23 @@ from email.mime.multipart import MIMEMultipart
 # --- CONFIG ---
 st.set_page_config(page_title="EagleView Estates | EOI Portal", layout="centered", page_icon="🦅")
 
-# --- PRICING ENGINE ---
+# --- UPDATED PRICING RANGES ---
 PRICING_DEALS = {
     "💎 ANCHOR TENANT: 5-Acre Parcel": {
-        "rate": "$12,500/month (Triple Net)",
-        "details": "Full 5-acre integrated site, exclusive biometric gate access, and 24/7 priority maintenance."
+        "rate": "$7,000 - $12,500/month (Triple Net)",
+        "details": "Full 5-acre integrated site. Pricing varies based on specific engineering requirements and lease term."
     },
     "Dedicated Pad (1-5k sqft)": {
-        "rate": "$2,500/month",
-        "details": "Engineered compacted gravel pad with dedicated LED lighting and CCTV coverage."
+        "rate": "$1,250 - $5,000/month",
+        "details": "Engineered gravel pad. Rate dependent on total square footage and utility requirements."
     },
     "Hourly Flex Staging": {
-        "rate": "$75/hour (4-hour minimum)",
-        "details": "Rapid-access staging area for cross-docking and short-term equipment positioning."
+        "rate": "$75 - $125/hour",
+        "details": "Rapid-access staging. Pricing determined by equipment type and staging duration."
     },
     "Winter Storage": {
-        "rate": "$1,200/unit (Seasonal)",
-        "details": "Secure winterization storage for heavy fleet equipment from Nov 1 to April 1."
+        "rate": "$1,500 - $2,500/unit (Seasonal)",
+        "details": "Secure winterization storage. Rate varies by vehicle length and accessibility needs."
     }
 }
 
@@ -36,16 +36,16 @@ def send_emails(data, is_eoi=False):
         selected_scope = data.get('q1', "Dedicated Pad (1-5k sqft)")
         price_info = PRICING_DEALS.get(selected_scope, PRICING_DEALS["Dedicated Pad (1-5k sqft)"])
         
-        # 1. NOTIFICATION TO ADMIN
+        # 1. ADMIN NOTIFICATION
         msg_to_admin = MIMEMultipart()
         msg_to_admin["From"] = f"EagleView Estates Portal <{sender_email}>"
         msg_to_admin["To"] = sender_email
         msg_to_admin["Subject"] = f"🚨 NEW EOI: {data['name']} - {selected_scope}"
         
-        admin_body = f"EOI Record Received:\n\nCompany: {data['name']}\nContact: {data['contact']}\nSelection: {selected_scope}\nQuoted: {price_info['rate']}\n\nSigned: {data.get('signature', 'Inquiry Only')}"
+        admin_body = f"EOI Record Received:\n\nCompany: {data['name']}\nContact: {data['contact']}\nSelection: {selected_scope}\nRange Quoted: {price_info['rate']}\n\nSigned: {data.get('signature', 'Inquiry Only')}"
         msg_to_admin.attach(MIMEText(admin_body, "plain"))
 
-        # 2. THANK YOU TO CLIENT
+        # 2. CLIENT THANK YOU
         msg_to_client = MIMEMultipart()
         msg_to_client["From"] = f"EagleView Estates <{sender_email}>"
         msg_to_client["To"] = data['contact']
@@ -56,27 +56,26 @@ Dear {data['name']},
 
 Thank you for submitting your Expression of Interest for EagleView Estates at CentrePort Canada.
 
-Based on your strategic requirements for a {selected_scope}, we have generated the following preliminary pricing and site options:
+Based on your strategic requirements for a {selected_scope}, we have generated the following preliminary pricing range and site options:
 
 ---
 SELECTED CONFIGURATION: {selected_scope}
-PROPOSED RATE: {price_info['rate']}
+PROPOSED RANGE: {price_info['rate']}
 SITE DETAILS: {price_info['details']}
 TARGET DEPLOYMENT: {data['q3']}
 ---
 
 *DISCLAIMER & CONDITIONS:
-Please note that this is a preliminary quote for site planning purposes only. All rates and configurations are subject to change based on site availability, market conditions, and final engineering requirements. This quote does not constitute a binding lease agreement or a guarantee of availability until a formal contract is executed by both parties.*
+Please note that these are preliminary price ranges for site planning purposes only. Final rates are subject to change based on site availability, market conditions, and specific engineering requirements. This quote does not constitute a binding lease agreement or a guarantee of availability until a formal contract is executed.*
 
 NEXT STEPS:
-Our development team is currently finalizing the engineered grading for the June 1st launch. A representative will reach out shortly to discuss specific site layout adjustments.
+Our development team is currently finalizing the June 1st launch plan. A representative will reach out shortly to discuss specific site layout adjustments and finalize your specific rate within the quoted range.
 
 Best regards,
 
 The Development Team
 EagleView Estates
 Winnipeg, Manitoba, Canada
-www.eagleviewearthworks.com
         """
         msg_to_client.attach(MIMEText(client_body, "plain"))
 
@@ -84,16 +83,14 @@ www.eagleviewearthworks.com
         server.starttls()
         server.login(sender_email, password)
         server.sendmail(sender_email, sender_email, msg_to_admin.as_string())
-        
         if "@" in data['contact']:
             server.sendmail(sender_email, data['contact'], msg_to_client.as_string())
-        
         server.quit()
         return True
     except:
         return False
 
-# --- CSS: THE CORPORATE AESTHETIC ---
+# --- CSS: DARK MODE INSTITUTIONAL ---
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #ffffff; }
@@ -104,12 +101,24 @@ st.markdown("""
     }
     .sub-brand { text-align: center; color: #d4af37; letter-spacing: 4px; font-size: 0.9em; text-transform: uppercase; margin-bottom: 40px; }
     
+    /* BLACK BACKGROUND EOI DOCUMENT */
     .eoi-document {
-        background-color: #ffffff; color: #1a1a1a; padding: 45px; border-radius: 2px;
-        font-family: 'Times New Roman', serif; line-height: 1.4; margin-bottom: 30px;
-        box-shadow: 0 0 30px rgba(212, 175, 55, 0.15); font-size: 0.95em;
+        background-color: #000000; 
+        color: #ffffff; 
+        padding: 45px; 
+        border: 1px solid #333;
+        border-radius: 2px;
+        font-family: 'serif'; 
+        line-height: 1.4; 
+        margin-bottom: 30px;
+        box-shadow: 0 0 30px rgba(212, 175, 55, 0.1); 
+        font-size: 0.95em;
     }
-    .eoi-title { text-align: center; font-weight: bold; font-size: 1.2em; border-bottom: 2px solid #1a1a1a; margin-bottom: 20px; padding-bottom: 10px; text-transform: uppercase; }
+    .eoi-title { 
+        text-align: center; font-weight: bold; font-size: 1.2em; 
+        border-bottom: 1px solid #d4af37; margin-bottom: 20px; 
+        padding-bottom: 10px; text-transform: uppercase; color: #d4af37;
+    }
     
     .stButton>button { 
         background-color: #d4af37 !important; color: #000 !important; font-weight: bold; border-radius: 0; 
@@ -162,10 +171,10 @@ elif st.session_state.page == 'eoi':
         <div class='eoi-title'>Expression of Interest: Strategic Site Selection</div>
         <p><b>PROJECT:</b> CentrePort Canada Industrial Hub – June 1st Expansion</p>
         <p><b>PROSPECTIVE TENANT:</b> {st.session_state.user_data['name']}</p>
-        <hr>
+        <hr style='border: 0.5px solid #333;'>
         <p><b>1. THE PARTIES:</b> This Expression of Interest (“EOI”) is submitted by the Prospective Tenant to EagleView Estates (“Developer”) regarding industrial land within the CentrePort footprint.</p>
         <p><b>2. SITE SCOPE:</b> Interested Party has identified a requirement for a <b>{st.session_state.user_data['q1']}</b> for the <b>{st.session_state.user_data['q3']}</b> window.</p>
-        <p><b>3. PRELIMINARY TERMS:</b> Both parties acknowledge that pricing and configurations are subject to change based on site availability, market demand, and final engineering benchmarks.</p>
+        <p><b>3. PRELIMINARY TERMS:</b> Both parties acknowledge that pricing ranges and configurations are subject to change based on site availability, market demand, and final engineering benchmarks.</p>
         <p><b>4. STATEMENT OF INTENT:</b> Execution confirms a serious interest in securing space and establishes priority status in the Developer’s site-allocation queue.</p>
         <p><b>5. NON-BINDING NATURE:</b> This document is a statement of mutual interest and does not constitute a legally binding lease agreement until executed by both parties in a final Lease Contract.</p>
     </div>
@@ -187,7 +196,7 @@ elif st.session_state.page == 'thankyou':
     st.markdown("<div style='color:#d4af37; font-size: 1.5em; text-align:center; letter-spacing: 5px; margin-top:50px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
     st.markdown(f"""
         <div style='color:#888; text-align:center; max-width:600px; margin: 40px auto; line-height:1.6;'>
-            Thank you, <b>{st.session_state.user_data['name']}</b>. Your requirements have been integrated. <br><br>
+            Thank you, <b>{st.session_state.user_data['name']}</b>. <br><br>
             A confirmation including your <b>custom pricing package</b> has been sent to <b>{st.session_state.user_data['contact']}</b>.<br><br>
             <div style='background-color:#111; padding:15px; border:1px solid #333; color:#d4af37; font-size:0.9em;'>
             <b>IMPORTANT:</b> If the pricing package does not arrive within 60 seconds, check your <b>Junk folder</b>.
