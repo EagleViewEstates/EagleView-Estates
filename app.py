@@ -705,7 +705,7 @@ def render_email_diagnostics(result: EmailSendResult) -> None:
 def assessment_page() -> None:
     render_header()
     with st.form("assessment_form", clear_on_submit=False):
-        st.markdown("### <span class='gold-text'>Private Yard Allocation Request</span>", unsafe_allow_html=True)
+        st.markdown("### <span class='gold-text'>Expression of Interest Request</span>", unsafe_allow_html=True)
         st.caption("For contractors, infrastructure operators, fleet users, and commercial tenants seeking secured yard space.")
 
         client_type = st.selectbox("1. Client / Organization Type", CLIENT_TYPES)
@@ -777,7 +777,7 @@ def eoi_page() -> None:
     st.markdown(
         f"""
         <div class='eoi-document'>
-        <h2 style='text-align:center; color:#d4af37; text-transform:uppercase;'>Private Yard Allocation Request</h2>
+        <h2 style='text-align:center; color:#d4af37; text-transform:uppercase;'>Expression of Interest Request</h2>
         <p><span class='gold-text'>Prospective Tenant:</span> {safe_html_text(data.get('name'))}</p>
         <hr style='border: 0.5px solid #d4af37;'>
         <p><b>1. Client Type:</b> {safe_html_text(data.get('client_type'))}</p>
@@ -829,7 +829,7 @@ def thankyou_page() -> None:
         f"""
         <div style='color:#d4af37; font-size:1.8rem; text-align:center; letter-spacing:.22em; margin-bottom:1rem; text-transform:uppercase;'>Request Received</div>
         <div class='notice-card'>
-        <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:.12em;'>Private Yard Allocation Request Received</h4>
+        <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:.12em;'>Expression of Interest Request Received</h4>
         <p>Your preliminary leasing framework has been accepted by the mail server.</p>
         <p>A verification copy was also sent to EagleView for internal review and follow-up.</p>
         {booking_html}
