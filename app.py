@@ -146,4 +146,3 @@ elif st.session_state.page == 'thankyou':
     st.write("")
     st.write(f"Thank you, {st.session_state.user_data['name']}. Your data has been integrated into our June 1st site plan.")
     st.write("We have received your priority inquiry and look forward to partnering in the future.")
-    st.balloons()
