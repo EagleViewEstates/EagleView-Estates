@@ -254,4 +254,609 @@ def apply_global_styles() -> None:
         .privacy-note {{ font-size:.85rem; color:#ccc; border-left:3px solid #d4af37; padding-left:.9rem; margin-top:.75rem; }}
         .stButton>button, .stFormSubmitButton>button {{ background-color:#d4af37!important; color:#000!important; font-weight:800; border-radius:.35rem; min-height:3.4rem; width:100%; border:none; letter-spacing:.12em; text-transform:uppercase; }}
         .stButton>button:hover, .stFormSubmitButton>button:hover {{ background-color:#fff!important; box-shadow:0 0 20px rgba(212,175,55,.8); }}
-        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox, .stTextArea {{ colo
+        label, .stMarkdown, .stRadio, .stSelectbox, .stMultiSelect, .stTextInput, .stCheckbox, .stTextArea {{ color:#fff!important; }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header() -> None:
+    st.markdown(f"<div class='brand-title'>{BRAND_NAME}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-brand'>{LOCATION_LINE}</div>", unsafe_allow_html=True)
+
+
+def init_state() -> None:
+    st.session_state.setdefault("page", "assessment")
+    st.session_state.setdefault("user_data", {})
+    st.session_state.setdefault("email_result", None)
+
+
+def reset_portal() -> None:
+    st.session_state.page = "assessment"
+    st.session_state.user_data = {}
+    st.session_state.email_result = None
+    st.rerun()
+
+
+# ============================================================
+# Business logic
+# ============================================================
+
+def format_single_pricing_block(scope: str, pricing: PricingDeal) -> str:
+    return f"""{scope}
+- Daily: {pricing.daily}
+- Weekly: {pricing.weekly}
+- Monthly: {pricing.monthly}
+- Yearly: {pricing.yearly}
+- Multi-Year: {pricing.multi_year}
+- Details: {pricing.details}"""
+
+
+def format_full_pricing_schedule() -> str:
+    return "\n\n".join(format_single_pricing_block(scope, pricing) for scope, pricing in PRICING_DEALS.items())
+
+
+def requested_pricing_block(data: dict) -> str:
+    scope = data.get("scope", "")
+    if data.get("send_full_pricing", True) or scope not in PRICING_DEALS:
+        return format_full_pricing_schedule()
+    return format_single_pricing_block(scope, PRICING_DEALS[scope])
+
+
+def calculate_lead_score(data: dict) -> Tuple[str, int, str, str]:
+    score = 0
+    scope = data.get("scope", "")
+    space = data.get("space_requirement", "")
+    term = data.get("lease_term", "")
+    value = data.get("strategic_value", "")
+    deployment = data.get("deployment_window", "")
+    amenities = data.get("amenities", [])
+    client_type = data.get("client_type", "")
+
+    if "Anchor" in scope or "5-Acre" in scope:
+        score += 35
+    elif "Dedicated Pad" in scope:
+        score += 22
+    elif "Flex" in scope:
+        score += 15
+    else:
+        score += 10
+
+    if "Full Site" in space:
+        score += 30
+    elif "25,000 - 50,000" in space:
+        score += 24
+    elif "10,000 - 25,000" in space:
+        score += 18
+    elif "5,000 - 10,000" in space:
+        score += 12
+    elif "1,000 - 5,000" in space:
+        score += 8
+
+    if "Anchor" in term or "Multi-Year" in term:
+        score += 24
+    elif "Annual" in term:
+        score += 16
+    elif "Seasonal" in term:
+        score += 10
+    elif "Monthly" in term:
+        score += 6
+
+    if value == "Critical":
+        score += 16
+    elif value == "Strategic":
+        score += 12
+    elif value == "Important":
+        score += 8
+
+    if "Immediate" in deployment:
+        score += 10
+    elif "Summer" in deployment:
+        score += 7
+
+    if "Exclusive / Dedicated Yard Area" in amenities:
+        score += 8
+    if "After-Hours Access" in amenities:
+        score += 4
+    if "Power Availability" in amenities:
+        score += 4
+    if client_type in {"Government / Institutional", "Energy / Industrial Services", "Utility / Infrastructure Contractor"}:
+        score += 8
+
+    if score >= 95:
+        return "Tier A+ / Anchor Prospect", score, "Same-day executive follow-up recommended", "DO NOT SEND STANDARD QUOTE ONLY. Complete custom allocation review and term pricing."
+    if score >= 75:
+        return "Tier A / High-Value Commercial Prospect", score, "Follow up within 24 hours", "Quote preliminary framework, then move toward custom lease structure."
+    if score >= 50:
+        return "Tier B / Qualified Commercial Prospect", score, "Follow up within 48 hours", "Use standard schedule with opportunity to adjust for size and term."
+    return "Tier C / General Inquiry", score, "Follow up as capacity allows", "Use standard pricing schedule and qualify further before reserving space."
+
+
+def estimate_monthly_value(data: dict) -> str:
+    scope = data.get("scope", "")
+    space = data.get("space_requirement", "")
+    if "Full Site" in space or "5-Acre" in scope:
+        return "$9,500 - $14,500+/month before custom terms"
+    if "25,000 - 50,000" in space:
+        return "$8,500 - $30,000+/month depending on rate structure and exclusivity"
+    if "10,000 - 25,000" in space:
+        return "$5,000 - $18,000/month depending on access, surface, and term"
+    if "5,000 - 10,000" in space:
+        return "$3,500 - $9,500/month depending on use case"
+    if "1,000 - 5,000" in space:
+        return "$2,250 - $4,500/month typical dedicated pad range"
+    return "To be confirmed after site allocation review"
+
+
+def is_high_value_lead(data: dict) -> bool:
+    _, score, _, _ = calculate_lead_score(data)
+    return score >= 75 or "Full Site" in data.get("space_requirement", "")
+
+
+# ============================================================
+# Attachments and backup
+# ============================================================
+
+def get_layout_file(data: dict) -> Optional[Path]:
+    return LAYOUT_FILES.get(data.get("space_requirement", ""))
+
+
+def attach_file(message: MIMEMultipart, file_path: Optional[Path], display_name: str, subtype: str = "octet-stream") -> Tuple[bool, str]:
+    if file_path is None:
+        return False, "No file mapped."
+    if not file_path.exists():
+        return False, f"File missing: {file_path}"
+    try:
+        with file_path.open("rb") as file:
+            part = MIMEApplication(file.read(), _subtype=subtype, Name=display_name)
+        part["Content-Disposition"] = f'attachment; filename="{display_name}"'
+        message.attach(part)
+        return True, f"Attached: {file_path}"
+    except Exception as exc:
+        logger.exception("Attachment failed")
+        return False, f"Attachment error for {file_path}: {type(exc).__name__}: {exc}"
+
+
+def build_framework_html(data: dict) -> str:
+    tier, score, _, _ = calculate_lead_score(data)
+    booking_link = get_booking_link()
+    booking_section = f'<p><b>Schedule Private Site Allocation Review:</b> <a href="{html.escape(booking_link)}">{html.escape(booking_link)}</a></p>' if booking_link else ""
+    return f"""<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>EagleView Preliminary Leasing Framework</title></head>
+<body style="font-family:Arial, sans-serif; color:#111; line-height:1.45;">
+<h1 style="color:#9a7611; letter-spacing:2px;">EAGLEVIEW ESTATES</h1>
+<h2>Preliminary Yard Leasing Framework</h2>
+<p><b>Client:</b> {safe_html_text(data.get('name'))}</p>
+<p><b>Client Type:</b> {safe_html_text(data.get('client_type'))}</p>
+<p><b>Operational Scope:</b> {safe_html_text(data.get('scope'))}</p>
+<p><b>Approximate Space Requirement:</b> {safe_html_text(data.get('space_requirement'))}</p>
+<p><b>Preferred Lease Structure:</b> {safe_html_text(data.get('lease_term'))}</p>
+<p><b>Target Deployment Window:</b> {safe_html_text(data.get('deployment_window'))}</p>
+<p><b>Estimated Monthly Value:</b> {safe_html_text(estimate_monthly_value(data))}</p>
+<h3>Preliminary Pricing Framework</h3>
+<pre style="white-space:pre-wrap; background:#f7f4ea; border:1px solid #c9b46a; padding:12px;">{safe_html_text(requested_pricing_block(data))}</pre>
+<h3>Commercial Notes</h3>
+<p>Larger allocations, exclusive-use areas, infrastructure users, project-based staging requirements, and multi-year commitments may be reviewed under a custom site allocation and term-pricing structure.</p>
+<h3>Internal Classification</h3>
+<p>{safe_html_text(tier)} | Score {score}/125</p>
+<h3>Important Non-Binding Disclaimer</h3>
+<p>This preliminary framework is for discussion purposes only. Pricing is indicative and subject to availability, final yard configuration, access requirements, operating intensity, lease term, insurance requirements, municipal approvals where applicable, and final documentation. No lease, reservation, exclusivity, or binding commitment is created until a formal agreement is executed by both parties.</p>
+{booking_section}
+</body></html>"""
+
+
+def create_framework_html_file(data: dict) -> Tuple[Optional[Path], str]:
+    try:
+        ensure_directories()
+        path = GENERATED_DIRECTORY / f"EagleView_Preliminary_Leasing_Framework_{safe_filename(data.get('name'))}.html"
+        path.write_text(build_framework_html(data), encoding="utf-8")
+        return path, f"Generated HTML framework: {path}"
+    except Exception as exc:
+        logger.exception("Framework generation failed")
+        return None, f"Framework generation failed: {type(exc).__name__}: {exc}"
+
+
+def attach_all_client_files(message: MIMEMultipart, data: dict) -> AttachmentStatus:
+    framework_path, framework_status = create_framework_html_file(data)
+    framework_ok, framework_attach_status = attach_file(message, framework_path, "EagleView_Preliminary_Leasing_Framework.html", "octet-stream") if framework_path else (False, framework_status)
+    overview_ok, overview_status = attach_file(message, SITE_LAYOUT_OVERVIEW, "EagleView_Site_Layout_Overview.jpg", "octet-stream")
+    size_ok, size_status = attach_file(message, get_layout_file(data), f"EagleView_Yard_Allocation_{safe_filename(data.get('space_requirement'))}.pdf", "pdf")
+    return AttachmentStatus(overview_ok, overview_status, size_ok, size_status, framework_ok, framework_attach_status)
+
+
+def format_attachment_report(status: Optional[AttachmentStatus]) -> str:
+    if status is None:
+        return "Attachment status unavailable."
+    return f"""Leasing Framework HTML: {'Attached' if status.framework_attached else 'NOT ATTACHED'}
+Leasing Framework Status: {status.framework_status}
+Universal Site Layout Overview: {'Attached' if status.overview_attached else 'NOT ATTACHED'}
+Overview Status: {status.overview_status}
+Size-Specific Layout: {'Attached' if status.size_layout_attached else 'NOT ATTACHED'}
+Size-Specific Status: {status.size_layout_status}"""
+
+
+def save_lead(data: dict, result: Optional[EmailSendResult], status: Optional[AttachmentStatus]) -> str:
+    try:
+        ensure_directories()
+        tier, score, follow_up, strategy = calculate_lead_score(data)
+        row = {
+            "submitted_at_utc": datetime.now(timezone.utc).isoformat(),
+            "company_or_rep": data.get("name", ""),
+            "email": data.get("email", ""),
+            "client_type": data.get("client_type", ""),
+            "scope": data.get("scope", ""),
+            "space_requirement": data.get("space_requirement", ""),
+            "lease_term": data.get("lease_term", ""),
+            "send_full_pricing": data.get("send_full_pricing", True),
+            "strategic_value": data.get("strategic_value", ""),
+            "deployment_window": data.get("deployment_window", ""),
+            "amenities": json.dumps(data.get("amenities", [])),
+            "project_notes": data.get("project_notes", ""),
+            "signature": data.get("signature", ""),
+            "terms_acknowledged": data.get("terms_acknowledged", False),
+            "privacy_acknowledged": data.get("privacy_acknowledged", False),
+            "lead_tier": tier,
+            "lead_score": score,
+            "follow_up": follow_up,
+            "pricing_strategy": strategy,
+            "estimated_monthly_value": estimate_monthly_value(data),
+            "client_email_sent": result.client_sent if result else "",
+            "admin_email_sent": result.admin_sent if result else "",
+            "client_error": result.client_error if result else "",
+            "admin_error": result.admin_error if result else "",
+            "framework_attached": status.framework_attached if status else "",
+            "overview_attached": status.overview_attached if status else "",
+            "size_layout_attached": status.size_layout_attached if status else "",
+        }
+        file_exists = LEAD_CSV_FILE.exists()
+        with LEAD_CSV_FILE.open("a", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=list(row.keys()))
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(row)
+        return f"Lead saved to {LEAD_CSV_FILE}"
+    except Exception as exc:
+        logger.exception("Lead backup failed")
+        return f"Lead backup failed: {type(exc).__name__}: {exc}"
+
+
+# ============================================================
+# Email builders and sending
+# ============================================================
+
+def build_client_email(data: dict, sender_email: str) -> Tuple[MIMEMultipart, AttachmentStatus]:
+    message = MIMEMultipart()
+    message["From"] = f"EagleView Estates <{sender_email}>"
+    message["To"] = data["email"]
+    message["Subject"] = "EagleView Estates: Preliminary Yard Leasing Framework"
+
+    pricing_intro = "Complete current pricing schedule:" if data.get("send_full_pricing", True) else f"Current pricing indication for {data.get('scope')}:"
+    booking_link = get_booking_link()
+    booking_text = f"\nSchedule Private Site Allocation Review:\n{booking_link}\n" if booking_link else "\nNext Step:\nEagleView may complete a private site allocation review before confirming availability.\n"
+
+    body = f"""Hello {data.get('name')},
+
+Thank you for submitting your private yard allocation request for EagleView Estates.
+
+Preliminary requirement:
+- Client Type: {data.get('client_type')}
+- Operational Scope: {data.get('scope')}
+- Approximate Space Requirement: {data.get('space_requirement')}
+- Preferred Lease Term: {data.get('lease_term')}
+- Target Deployment Window: {data.get('deployment_window')}
+
+{pricing_intro}
+{requested_pricing_block(data)}
+
+Attached Package:
+- Preliminary Yard Leasing Framework HTML
+- EagleView Site Layout Overview
+- Size-specific yard allocation exhibit, when available
+
+Important Disclaimer:
+This submission confirms interest only. Pricing is indicative and subject to availability, final yard configuration, access requirements, operating intensity, lease term, insurance requirements, security requirements, municipal approvals where applicable, and final lease documentation. No lease, reservation, exclusivity, or binding commitment is created until a formal agreement is executed by both parties.
+
+Privacy / Commercial Confidentiality:
+Information submitted through the EagleView portal will be used to evaluate preliminary yard leasing requirements, site allocation suitability, pricing structure, and follow-up priority.
+{booking_text}
+Best regards,
+The EagleView Estates Team"""
+    message.attach(MIMEText(body, "plain"))
+    attachment_status = attach_all_client_files(message, data)
+    message["X-EagleView-Attachments"] = f"framework={attachment_status.framework_attached}; overview={attachment_status.overview_attached}; size={attachment_status.size_layout_attached}"
+    return message, attachment_status
+
+
+def build_admin_email(data: dict, sender_email: str, admin_email: str, attachment_status: Optional[AttachmentStatus], lead_status: str) -> MIMEMultipart:
+    tier, score, follow_up, strategy = calculate_lead_score(data)
+    high_value_warning = "\n*** HIGH-VALUE LEAD: DO NOT SEND STANDARD QUOTE ONLY — CUSTOM ALLOCATION REVIEW REQUIRED ***\n" if is_high_value_lead(data) else ""
+    subject_prefix = "HIGH-VALUE LEAD - " if is_high_value_lead(data) else ""
+
+    message = MIMEMultipart()
+    message["From"] = f"EagleView Portal <{sender_email}>"
+    message["To"] = admin_email
+    message["Subject"] = f"{subject_prefix}New Allocation Request: {data.get('name')}"
+
+    body = f"""New private yard allocation request received.
+{high_value_warning}
+Company / Representative: {data.get('name')}
+Email: {data.get('email')}
+Client Type: {data.get('client_type')}
+Operational Scope: {data.get('scope')}
+Space Requirement: {data.get('space_requirement')}
+Preferred Lease Term: {data.get('lease_term')}
+Strategic Value: {data.get('strategic_value')}
+Target Deployment: {data.get('deployment_window')}
+Amenities: {', '.join(data.get('amenities', [])) or 'None selected'}
+Project / Use Notes: {data.get('project_notes') or 'N/A'}
+Digital Signature: {data.get('signature')}
+Terms Acknowledged: {'Yes' if data.get('terms_acknowledged') else 'No'}
+Privacy Acknowledged: {'Yes' if data.get('privacy_acknowledged') else 'No'}
+
+Internal Lead Review:
+Lead Tier: {tier}
+Lead Score: {score}/125
+Follow-Up Urgency: {follow_up}
+Recommended Pricing Strategy: {strategy}
+Estimated Monthly Value: {estimate_monthly_value(data)}
+
+Attachment Report:
+{format_attachment_report(attachment_status)}
+
+Lead Backup:
+{lead_status}
+
+Pricing Sent To Prospect:
+{requested_pricing_block(data)}
+
+Notes:
+This is a non-binding allocation request only. No lease has been executed through the portal."""
+    message.attach(MIMEText(body, "plain"))
+    return message
+
+
+def send_one_email(server: smtplib.SMTP, message: MIMEMultipart, from_addr: str, recipients: List[str]) -> Tuple[bool, str]:
+    try:
+        refused = server.sendmail(from_addr, recipients, message.as_string())
+        if refused:
+            return False, f"Recipient refused: {refused}"
+        return True, ""
+    except Exception as exc:
+        logger.exception("Email send failed")
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def send_emails(data: dict) -> Tuple[EmailSendResult, AttachmentStatus, str]:
+    sender_email, admin_email, smtp_username, password = get_email_config()
+    result = EmailSendResult(
+        smtp_username=smtp_username,
+        sender_email=sender_email,
+        admin_email=admin_email,
+        client_email=data.get("email", ""),
+    )
+
+    client_message, attachment_status = build_client_email(data, sender_email)
+    initial_lead_status = save_lead(data, None, attachment_status)
+    admin_message = build_admin_email(data, sender_email, admin_email, attachment_status, initial_lead_status)
+
+    if not password:
+        result.client_error = "Missing EMAIL_PASSWORD in Streamlit secrets."
+        result.admin_error = "Missing EMAIL_PASSWORD in Streamlit secrets."
+        final_status = save_lead(data, result, attachment_status)
+        return result, attachment_status, final_status
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=25) as server:
+            server.ehlo()
+            server.starttls(context=ssl.create_default_context())
+            server.ehlo()
+            server.login(smtp_username, password)
+
+            result.client_sent, result.client_error = send_one_email(
+                server,
+                client_message,
+                sender_email,
+                [data["email"], admin_email],
+            )
+            result.admin_sent, result.admin_error = send_one_email(
+                server,
+                admin_message,
+                sender_email,
+                [admin_email],
+            )
+    except smtplib.SMTPAuthenticationError as exc:
+        error = f"SMTPAuthenticationError: {exc}. Check Gmail app password / SMTP_USERNAME."
+        result.client_error = error
+        result.admin_error = error
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        result.client_error = error
+        result.admin_error = error
+
+    final_lead_status = save_lead(data, result, attachment_status)
+    return result, attachment_status, final_lead_status
+
+
+def render_email_diagnostics(result: EmailSendResult) -> None:
+    st.markdown(
+        f"""
+        <div class='diagnostic-card'>
+        <b>Email Diagnostic</b><br>
+        SMTP Username: {safe_html_text(result.smtp_username)}<br>
+        Sender Email: {safe_html_text(result.sender_email)}<br>
+        Client Email: {safe_html_text(result.client_email)}<br>
+        Admin / Verification Copy: {safe_html_text(result.admin_email)}<br>
+        Client Confirmation Accepted by SMTP: {'YES' if result.client_sent else 'NO'}<br>
+        Admin Allocation Notice Accepted by SMTP: {'YES' if result.admin_sent else 'NO'}<br>
+        Client Error: {safe_html_text(result.client_error or 'None')}<br>
+        Admin Error: {safe_html_text(result.admin_error or 'None')}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# Pages
+# ============================================================
+
+def assessment_page() -> None:
+    render_header()
+    with st.form("assessment_form", clear_on_submit=False):
+        st.markdown("### <span class='gold-text'>Private Yard Allocation Request</span>", unsafe_allow_html=True)
+        st.caption("For contractors, infrastructure operators, fleet users, and commercial tenants seeking secured yard space.")
+
+        client_type = st.selectbox("1. Client / Organization Type", CLIENT_TYPES)
+        scope = st.selectbox("2. Operational Scope", list(PRICING_DEALS.keys()))
+        space_requirement = st.selectbox("3. Approximate Space Requirement", SPACE_REQUIREMENTS)
+        lease_term = st.selectbox("4. Preferred Lease Structure", LEASE_TERMS)
+        send_full_pricing = st.checkbox("Send me the complete preliminary pricing schedule for all storage options", value=True)
+        strategic_value = st.select_slider("5. Strategic Value of Location", options=VALUE_OPTIONS)
+        deployment_window = st.radio("6. Target Deployment Date", DEPLOYMENT_WINDOWS)
+        amenities = st.multiselect("7. Critical Site Requirements", AMENITIES)
+        project_notes = st.text_area(
+            "8. Project / Fleet Requirement Notes",
+            placeholder="Equipment type, number of units, access frequency, security requirements, or timeline.",
+            height=120,
+        )
+
+        st.markdown(
+            "<div class='privacy-note'>Information submitted through this portal will be used to evaluate preliminary yard leasing requirements, site allocation suitability, pricing structure, and follow-up priority.</div>",
+            unsafe_allow_html=True,
+        )
+        terms_acknowledged = st.checkbox("I understand this is a non-binding preliminary leasing request and does not create a reservation, lease, exclusivity, or guarantee of availability.")
+        privacy_acknowledged = st.checkbox("I understand the submitted information may be used by EagleView Estates to evaluate site allocation suitability and follow-up priority.")
+
+        name = st.text_input("Company / Representative Name", placeholder="Example: ABC Contracting Ltd.")
+        email = st.text_input("Direct Email", placeholder="name@company.com")
+        submitted = st.form_submit_button("Validate & Continue")
+
+    if submitted:
+        if not name.strip():
+            st.warning("Please enter a company or representative name.")
+            return
+        if not is_valid_email(email.strip().lower()):
+            st.warning("Please enter a valid email address.")
+            return
+        if not terms_acknowledged:
+            st.warning("Please acknowledge that this is a non-binding preliminary leasing request.")
+            return
+        if not privacy_acknowledged:
+            st.warning("Please acknowledge the privacy / commercial review notice.")
+            return
+
+        st.session_state.user_data = {
+            "name": name.strip(),
+            "email": email.strip().lower(),
+            "client_type": client_type,
+            "scope": scope,
+            "space_requirement": space_requirement,
+            "lease_term": lease_term,
+            "send_full_pricing": send_full_pricing,
+            "strategic_value": strategic_value,
+            "deployment_window": deployment_window,
+            "amenities": amenities,
+            "project_notes": project_notes.strip(),
+            "terms_acknowledged": terms_acknowledged,
+            "privacy_acknowledged": privacy_acknowledged,
+        }
+        st.session_state.page = "eoi"
+        st.rerun()
+
+
+def eoi_page() -> None:
+    data = st.session_state.get("user_data", {})
+    if not data:
+        reset_portal()
+        return
+
+    render_header()
+    lead_tier, lead_score, _, _ = calculate_lead_score(data)
+    st.markdown(
+        f"""
+        <div class='eoi-document'>
+        <h2 style='text-align:center; color:#d4af37; text-transform:uppercase;'>Private Yard Allocation Request</h2>
+        <p><span class='gold-text'>Prospective Tenant:</span> {safe_html_text(data.get('name'))}</p>
+        <hr style='border: 0.5px solid #d4af37;'>
+        <p><b>1. Client Type:</b> {safe_html_text(data.get('client_type'))}</p>
+        <p><b>2. Scope:</b> <span class='gold-text'>{safe_html_text(data.get('scope'))}</span></p>
+        <p><b>3. Space Requirement:</b> {safe_html_text(data.get('space_requirement'))}</p>
+        <p><b>4. Lease Structure:</b> {safe_html_text(data.get('lease_term'))}</p>
+        <p><b>5. Target Window:</b> {safe_html_text(data.get('deployment_window'))}</p>
+        <p><b>6. Internal Qualification:</b> {safe_html_text(lead_tier)} — Score {lead_score}/125</p>
+        <p><b>7. Non-Binding Acknowledgement:</b> This request is not a lease, reservation, exclusivity, or binding commitment.</p>
+        <p style='font-size:.9rem; color:#bbb; margin-top:1.5rem;'><i>By signing below, you confirm interest in receiving preliminary leasing information and, where applicable, a private site allocation review.</i></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    signature = st.text_input("Digital Signature", placeholder="Full name and title")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Back"):
+            st.session_state.page = "assessment"
+            st.rerun()
+    with col2:
+        if st.button("Submit Allocation Request"):
+            if not signature.strip():
+                st.warning("Please enter your full name and title as a digital signature.")
+                return
+            st.session_state.user_data["signature"] = signature.strip()
+            result, attachment_status, lead_status = send_emails(st.session_state.user_data)
+            st.session_state.email_result = result
+            if result.client_sent and result.admin_sent:
+                st.session_state.page = "thankyou"
+                st.rerun()
+            st.error("Email delivery failed or partially failed. Diagnostic details are below.")
+            st.info(lead_status)
+            st.text(format_attachment_report(attachment_status))
+            render_email_diagnostics(result)
+
+
+def thankyou_page() -> None:
+    render_header()
+    booking_link = get_booking_link()
+    if booking_link:
+        booking_html = f"<p><b>Next Step:</b> <a href='{safe_html_text(booking_link)}' target='_blank' style='color:#d4af37;'>Schedule a Private Site Allocation Review</a>.</p>"
+    else:
+        booking_html = "<p><b>Next Step:</b> Watch for your preliminary leasing framework by email. For larger requirements, EagleView may conduct an internal site allocation review before confirming availability.</p>"
+
+    st.markdown("<div style='text-align:center; margin-top:2rem; font-size:4rem;'>✔️</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div style='color:#d4af37; font-size:1.8rem; text-align:center; letter-spacing:.22em; margin-bottom:1rem; text-transform:uppercase;'>Request Received</div>
+        <div class='notice-card'>
+        <h4 style='color:#d4af37; margin-top:0; text-transform:uppercase; letter-spacing:.12em;'>Private Yard Allocation Request Received</h4>
+        <p>Your preliminary leasing framework has been accepted by the mail server.</p>
+        <p>A verification copy was also sent to EagleView for internal review and follow-up.</p>
+        {booking_html}
+        <p>If the confirmation package does not arrive shortly, check your <b style='color:#d4af37;'>Junk/Spam folder</b>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("Submit Another Allocation Request"):
+        reset_portal()
+
+
+def main() -> None:
+    ensure_directories()
+    init_state()
+    apply_global_styles()
+    page = st.session_state.get("page", "assessment")
+    if page == "assessment":
+        assessment_page()
+    elif page == "eoi":
+        eoi_page()
+    elif page == "thankyou":
+        thankyou_page()
+    else:
+        reset_portal()
+
+
+if __name__ == "__main__":
+    main()
