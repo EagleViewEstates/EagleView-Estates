@@ -108,4 +108,12 @@ with st.form("demand_assessment"):
 
 if submit:
     if name and contact:
-        st.success(f"Form Submitted. EagleView management will contact {name} regarding the {q3} timeframe
+        st.success(f"Form Submitted. EagleView management will contact {name} regarding the {q3} timeframe.")
+        if "Yes" in q5:
+            st.warning("⚡ High Priority: Pre-Lease interest flagged.")
+        st.balloons()
+    else:
+        st.error("Please provide a name and contact method to record your feedback.")
+
+# --- FOOTER ---
+st.markdown("<br><p style='text-align: center; color: #444; font-size: 0.8em; letter-spacing: 3px;'>EAGLEVIEW ESTATES | ROSSER, MB</p>", unsafe_allow_html=True)
