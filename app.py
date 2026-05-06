@@ -52,27 +52,25 @@ def send_emails(data, is_eoi=False):
         selected_scope = data.get('q1')
         p = PRICING_DEALS.get(selected_scope)
         
-        # 1. ADMIN NOTIFICATION
         msg_to_admin = MIMEMultipart()
         msg_to_admin["From"] = f"EagleView Estates Portal <{sender_email}>"
         msg_to_admin["To"] = sender_email
-        msg_to_admin["Subject"] = f"🚨 FULL SPECTRUM EOI: {data['name']}"
+        msg_to_admin["Subject"] = f"🚨 NEW EOI: {data['name']}"
         
-        admin_body = f"EOI Received:\n\nCompany: {data['name']}\nSelection: {selected_scope}\n\nUser Signed: {data.get('signature', 'Inquiry Only')}"
+        admin_body = f"EOI Received:\n\nCompany: {data['name']}\nContact: {data['contact']}\nSelection: {selected_scope}\n\nSigned: {data.get('signature', 'Inquiry Only')}"
         msg_to_admin.attach(MIMEText(admin_body, "plain"))
 
-        # 2. CLIENT THANK YOU
         msg_to_client = MIMEMultipart()
         msg_to_client["From"] = f"EagleView Estates <{sender_email}>"
         msg_to_client["To"] = data['contact']
-        msg_to_client["Subject"] = f"Lease Options & Multi-Term Pricing: {data['name']}"
+        msg_to_client["Subject"] = f"Lease Options & Pricing: {data['name']}"
         
         client_body = f"""
 Dear {data['name']},
 
-Thank you for submitting your Expression of Interest for EagleView Estates at CentrePort Canada.
+Thank you for submitting your Expression of Interest for EagleView Estates.
 
-Based on your selection for {selected_scope}, here is the dynamic pricing range for our upcoming June 1st deployment:
+Based on your selection for {selected_scope}, here is the dynamic pricing range:
 
 --- LEASE OPTIONS & RATE RANGES ---
 > Daily Rate: {p['Daily']}
@@ -82,18 +80,12 @@ Based on your selection for {selected_scope}, here is the dynamic pricing range 
 > Multi-Year: {p['Multi-Year']}
 
 SITE DETAILS: {p['details']}
-TARGET DEPLOYMENT: {data['q3']}
 --------------------------------------
 
-*PRICING NOTE: These ranges represent current market conditions and site engineering costs. Finalized rates within these ranges are determined by fleet volume, specific utility requirements, and term length.*
-
-NEXT STEPS:
-Our team will contact you to finalize your specific rate and secure your site position.
+*PRICING NOTE: Rates are subject to change based on final site engineering and availability.*
 
 Best regards,
-
-The Development Team
-EagleView Estates | Winnipeg, MB
+The EagleView Team
         """
         msg_to_client.attach(MIMEText(client_body, "plain"))
 
@@ -108,7 +100,7 @@ EagleView Estates | Winnipeg, MB
     except:
         return False
 
-# --- CSS: GOLD & BLACK HIGHLIGHTS ---
+# --- CSS: GOLD & BLACK THEME ---
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #ffffff; }
@@ -124,11 +116,7 @@ st.markdown("""
     .eoi-document {
         background-color: #000000; color: #ffffff; padding: 45px; border: 1px solid #d4af37;
         border-radius: 2px; font-family: 'serif'; line-height: 1.4; margin-bottom: 30px;
-        box-shadow: 0 0 40px rgba(212, 175, 55, 0.2); font-size: 0.95em;
-    }
-    .eoi-title { 
-        text-align: center; font-weight: bold; font-size: 1.2em; border-bottom: 1px solid #d4af37; 
-        margin-bottom: 20px; padding-bottom: 10px; text-transform: uppercase; color: #d4af37;
+        box-shadow: 0 0 40px rgba(212, 175, 55, 0.2);
     }
     
     .stButton>button { 
@@ -136,11 +124,6 @@ st.markdown("""
         height: 4em; border: none; letter-spacing: 2px; text-transform: uppercase; width: 100%;
     }
     .stButton>button:hover { background-color: #ffffff !important; box-shadow: 0 0 20px #d4af37; }
-    
-    .junk-warning {
-        background-color: #111; padding: 20px; border: 1px solid #d4af37; color: #d4af37; 
-        font-size: 0.9em; text-align: center; border-radius: 4px; margin-top: 30px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -152,19 +135,16 @@ if st.session_state.page == 'assessment':
     st.markdown("<div class='brand-gold'>EagleView Estates</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-brand'>CentrePort Canada • Winnipeg</div>", unsafe_allow_html=True)
     
-    if os.path.exists("site_photo.jpg"):
-        st.image("site_photo.jpg", use_column_width=True)
-
     with st.form("assessment_form"):
         st.markdown("### <span class='gold-text'>Strategic Site Assessment</span>", unsafe_allow_html=True)
         q1 = st.selectbox("1. Operational Scope", list(PRICING_DEALS.keys()))
         q2 = st.select_slider("2. Strategic Value of Location", options=["Low", "Neutral", "Important", "Strategic", "Critical"])
         q3 = st.radio("3. Target Deployment Date", ["June 1st - Immediate", "Summer 2026", "Fall/Winter 2026"])
-        q4 = st.multiselect("4. Critical Site Amenities", ["Biometric Access", "LED Lighting", "CCTV Surveillance", "Engineered Gravel", "Maintenance Support"])
+        q4 = st.multiselect("4. Critical Site Amenities", ["Biometric Access", "LED Lighting", "CCTV Surveillance", "Engineered Gravel"])
         q5 = st.radio("5. Execute an Expression of Interest to unlock full-term pricing ranges?", ["YES - Submit EOI", "NO - Just send general info"])
         
         name = st.text_input("Company / Representative Name")
-        contact = st.text_input("Direct Email (for full pricing breakdown)")
+        contact = st.text_input("Direct Email")
         
         if st.form_submit_button("VALIDATE & CONTINUE"):
             if name and contact:
@@ -174,22 +154,19 @@ if st.session_state.page == 'assessment':
                     send_emails(st.session_state.user_data)
                     st.session_state.page = 'thankyou'
                 st.rerun()
-            else:
-                st.warning("Identification required for site planning.")
+            else: st.warning("All fields required.")
 
-# --- PAGE 2: FORMAL STATEMENT OF INTEREST ---
+# --- PAGE 2: STATEMENT OF INTEREST ---
 elif st.session_state.page == 'eoi':
     st.markdown("<div class='brand-gold'>EagleView Estates</div>", unsafe_allow_html=True)
     st.markdown(f"""
     <div class='eoi-document'>
-        <div class='eoi-title'>Expression of Interest: Multi-Term Site Selection</div>
-        <p><span class='gold-text'>PROJECT:</span> CentrePort Canada Industrial Hub</p>
+        <h2 style='text-align: center; color: #d4af37; text-transform: uppercase;'>Expression of Interest</h2>
         <p><span class='gold-text'>PROSPECTIVE TENANT:</span> {st.session_state.user_data['name']}</p>
         <hr style='border: 0.5px solid #d4af37;'>
-        <p><b>1. SCOPE:</b> Interested Party has identified a requirement for <span class='gold-text'>{st.session_state.user_data['q1']}</span>.</p>
-        <p><b>2. TERMS:</b> Execution of this EOI triggers a comprehensive pricing breakdown across <b>Daily, Weekly, Monthly, Yearly, and Multi-Year</b> schedules.</p>
-        <p><b>3. PRIORITY:</b> This submission establishes priority status for the <b>{st.session_state.user_data['q3']}</b> window.</p>
-        <p><b>4. DISCLAIMER:</b> All rate ranges are subject to market conditions and engineering benchmarks. This document is a non-binding statement of intent.</p>
+        <p><b>1. SCOPE:</b> Requirement identified for <span class='gold-text'>{st.session_state.user_data['q1']}</span>.</p>
+        <p><b>2. TERMS:</b> Accessing pricing across <b>Daily, Weekly, Monthly, Yearly, and Multi-Year</b> terms.</p>
+        <p><b>3. PRIORITY:</b> Establishing site queue position for <b>{st.session_state.user_data['q3']}</b> window.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -200,20 +177,36 @@ elif st.session_state.page == 'eoi':
             send_emails(st.session_state.user_data, is_eoi=True)
             st.session_state.page = 'thankyou'
             st.rerun()
-        else: st.error("Signature required to verify intent.")
 
-# --- PAGE 3: THANK YOU ---
+# --- PAGE 3: THANK YOU & JUNK WARNING ---
 elif st.session_state.page == 'thankyou':
     st.markdown("<div class='brand-gold'>EagleView Estates</div>", unsafe_allow_html=True)
-    st.markdown("<div style='color:#d4af37; font-size: 1.5em; text-align:center; letter-spacing: 5px; margin-top:50px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; margin-top:30px; font-size:4em;'>✔️</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#d4af37; font-size: 1.8em; text-align:center; letter-spacing: 5px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
+    
+    # RE-ENGINEERED JUNK WARNING BOX
     st.markdown(f"""
-        <div style='color:#888; text-align:center; max-width:600px; margin: 40px auto; line-height:1.6;'>
-            Thank you, <span class='gold-text'>{st.session_state.user_data['name']}</span>. Your requirements have been integrated into our site plan. <br><br>
-            Your <b>Multi-Term Pricing Range Package</b> has been sent to <span class='gold-text'>{st.session_state.user_data['contact']}</span>.
-            
-            <div class='junk-warning'>
-                <b>CRITICAL:</b> If the pricing package does not arrive in your inbox within 60 seconds, check your <b>Junk/Spam folder</b>. 
-                Mark the message as 'Not Junk' to ensure you receive future engineering updates and lease documents.
-            </div>
+        <div style='color:#ffffff; text-align:center; max-width:600px; margin: 30px auto; line-height:1.6; font-size:1.1em;'>
+            Thank you, <span class='gold-text'>{st.session_state.user_data['name']}</span>. <br>
+            Your requirements are now being reviewed by our development team. <br><br>
+            Your <b>Full Multi-Term Pricing Package</b> has been dispatched to: <br>
+            <span style='color:#d4af37; font-family:monospace; font-size:1.2em;'>{st.session_state.user_data['contact']}</span>
+        </div>
+        
+        <div style='background: linear-gradient(145deg, #1a1a1a, #000000); 
+                    border: 2px solid #d4af37; 
+                    padding: 25px; 
+                    border-radius: 10px; 
+                    text-align: center; 
+                    max-width: 600px; 
+                    margin: 40px auto;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);'>
+            <h4 style='color: #d4af37; margin-top: 0; text-transform: uppercase; letter-spacing: 2px;'>⚠️ Critical Action Required</h4>
+            <p style='color: #ffffff; margin-bottom: 15px;'>If you do not see our pricing package in your inbox within 60 seconds:</p>
+            <ul style='color: #ffffff; text-align: left; display: inline-block; margin-bottom: 0;'>
+                <li>Check your <b style='color: #d4af37;'>Junk or Spam folder</b>.</li>
+                <li>Mark the email as <b style='color: #d4af37;'>"Not Junk"</b>.</li>
+                <li>Add <b style='color: #d4af37;'>info@eagleviewearthworks.com</b> to your contacts.</li>
+            </ul>
         </div>
     """, unsafe_allow_html=True)
