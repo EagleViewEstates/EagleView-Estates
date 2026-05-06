@@ -8,14 +8,13 @@ from email.mime.multipart import MIMEMultipart
 st.set_page_config(page_title="EagleView Estates | EOI Portal", layout="centered", page_icon="🦅")
 
 # --- PRICING ENGINE ---
-# Update these values to your actual rates
 PRICING_DEALS = {
     "💎 ANCHOR TENANT: 5-Acre Parcel": {
-        "rate": "$12,500/month (Triple Net)",
+        "rate": "$7,000-12,500/month (Triple Net)",
         "details": "Full 5-acre integrated site, exclusive biometric gate access, and 24/7 priority maintenance."
     },
     "Dedicated Pad (1-5k sqft)": {
-        "rate": "$2,500/month",
+        "rate": "$2,500-5000/month",
         "details": "Engineered compacted gravel pad with dedicated LED lighting and CCTV coverage."
     },
     "Hourly Flex Staging": {
@@ -23,7 +22,7 @@ PRICING_DEALS = {
         "details": "Rapid-access staging area for cross-docking and short-term equipment positioning."
     },
     "Winter Storage": {
-        "rate": "$1,200/unit (Seasonal)",
+        "rate": "$1,200-3500/unit (Seasonal)",
         "details": "Secure winterization storage for heavy fleet equipment from Nov 1 to April 1."
     }
 }
@@ -34,31 +33,19 @@ def send_emails(data, is_eoi=False):
         sender_email = "info@eagleviewearthworks.com"
         password = st.secrets["EMAIL_PASSWORD"]
         
-        # Get dynamic pricing based on selection
         selected_scope = data.get('q1', "Dedicated Pad (1-5k sqft)")
         price_info = PRICING_DEALS.get(selected_scope, PRICING_DEALS["Dedicated Pad (1-5k sqft)"])
         
-        # 1. NOTIFICATION TO YOU (ADMIN)
+        # 1. NOTIFICATION TO ADMIN
         msg_to_admin = MIMEMultipart()
         msg_to_admin["From"] = f"EagleView Estates Portal <{sender_email}>"
         msg_to_admin["To"] = sender_email
         msg_to_admin["Subject"] = f"🚨 NEW EOI: {data['name']} - {selected_scope}"
         
-        admin_body = f"""
-Official Site Record - EOI Received:
-
-Company: {data['name']}
-Contact: {data['contact']}
-Selection: {selected_scope}
-Timeline: {data['q3']}
-Quoted Rate: {price_info['rate']}
-
-Signed By: {data.get('signature', 'Inquiry Only')}
-Date: May 5, 2026
-        """
+        admin_body = f"EOI Received:\n\nCompany: {data['name']}\nContact: {data['contact']}\nSelection: {selected_scope}\nQuoted: {price_info['rate']}\n\nSigned: {data.get('signature', 'Inquiry Only')}"
         msg_to_admin.attach(MIMEText(admin_body, "plain"))
 
-        # 2. THANK YOU TO CLIENT WITH PRICING
+        # 2. THANK YOU TO CLIENT WITH PROTECTIVE CLAUSE
         msg_to_client = MIMEMultipart()
         msg_to_client["From"] = f"EagleView Estates <{sender_email}>"
         msg_to_client["To"] = data['contact']
@@ -78,10 +65,11 @@ SITE DETAILS: {price_info['details']}
 TARGET DEPLOYMENT: {data['q3']}
 ---
 
-NEXT STEPS:
-Our development team is currently finalizing the engineered grading for the June 1st launch. Your EOI has secured your priority position in the queue. 
+*DISCLAIMER & CONDITIONS:
+Please note that this is a preliminary quote for site planning purposes only. All rates and configurations are subject to change based on site availability, market conditions, and final engineering requirements. This quote does not constitute a binding lease agreement or a guarantee of availability until a formal contract is executed by both parties.*
 
-A representative will reach out shortly to discuss specific site layout adjustments and formalize the lease agreement.
+NEXT STEPS:
+Our development team is currently finalizing the engineered grading for the June 1st launch. A representative will reach out shortly to discuss specific site layout adjustments.
 
 Best regards,
 
@@ -92,7 +80,6 @@ www.eagleviewearthworks.com
         """
         msg_to_client.attach(MIMEText(client_body, "plain"))
 
-        # Execute Sending
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(sender_email, password)
@@ -161,7 +148,7 @@ if st.session_state.page == 'assessment':
                     st.session_state.page = 'thankyou'
                 st.rerun()
             else:
-                st.warning("Contact details required for site planning.")
+                st.warning("Contact details required.")
 
 # --- PAGE 2: EXPRESSION OF INTEREST ---
 elif st.session_state.page == 'eoi':
@@ -171,10 +158,9 @@ elif st.session_state.page == 'eoi':
         <h3 style='text-align:center; border-bottom: 1px solid #1a1a1a; padding-bottom:10px;'>EXPRESSION OF INTEREST</h3>
         <p><b>PROSPECTIVE TENANT:</b> {st.session_state.user_data['name']}<br>
         <b>DEVELOPMENT:</b> CentrePort Canada Hub</p>
-        <p>This document confirms a strategic interest in securing space at EagleView Estates. 
+        <p>This document confirms strategic interest in securing space. 
         Submission establishes priority status for the <b>{st.session_state.user_data['q3']}</b> window.</p>
-        <p><b>NEXT STEPS:</b> Upon execution, our system will transmit current lease options and pricing structures to the email provided.</p>
-        <p style='font-size:0.8em; color:#555;'><i>This is a non-binding expression of interest for site configuration purposes.</i></p>
+        <p><b>NEXT STEPS:</b> Our system will transmit current lease options and pricing structures to the email provided.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -192,12 +178,10 @@ elif st.session_state.page == 'thankyou':
     st.markdown("<div style='color:#d4af37; font-size: 1.5em; text-align:center; letter-spacing: 5px; margin-top:50px;'>EOI VERIFIED</div>", unsafe_allow_html=True)
     st.markdown(f"""
         <div style='color:#888; text-align:center; max-width:600px; margin: 40px auto; line-height:1.6;'>
-            Thank you, <b>{st.session_state.user_data['name']}</b>. Your requirements have been integrated. <br><br>
+            Thank you, <b>{st.session_state.user_data['name']}</b>. <br><br>
             A confirmation including your <b>custom pricing package</b> has been sent to <b>{st.session_state.user_data['contact']}</b>.<br><br>
             <div style='background-color:#111; padding:15px; border:1px solid #333; color:#d4af37; font-size:0.9em;'>
-            <b>IMPORTANT:</b> If the pricing package does not arrive within 60 seconds, please check your <b>Junk/Spam folder</b>.
+            <b>IMPORTANT:</b> If the pricing package does not arrive within 60 seconds, check your <b>Junk/Spam folder</b>.
             </div>
-            <br>
-            We look forward to partnering in the future.
         </div>
     """, unsafe_allow_html=True)
